@@ -17,7 +17,7 @@ from codex_jp_harness.rules import lint, load_rules
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 RULES_PATH = REPO_ROOT / "config" / "banned_terms.yaml"
 
-mcp = FastMCP("jp-lint")
+mcp = FastMCP("jp_lint")
 
 
 @mcp.tool()
