@@ -1,0 +1,2 @@
+# gitleaks allowlist — add fingerprint lines here when legitimate patterns match
+# Format: <commit>:<path>:<rule-id>:<line-number>
