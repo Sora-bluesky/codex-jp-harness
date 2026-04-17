@@ -5,7 +5,8 @@
 # hook registration is added by a later script).
 
 param(
-    [switch]$Force
+    [switch]$Force,
+    [switch]$AppendAgentsRule
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,22 +67,34 @@ args = ["-m", "codex_jp_harness.server"]
 Add-Content -Path $configPath -Value $entry -NoNewline
 Write-Host "[codex-jp-harness] Registered [mcp_servers.jp_lint] with venv Python: $venvPython" -ForegroundColor Green
 
-# AGENTS.md advisory
+# AGENTS.md rule handling
+$ruleBlockPath = Join-Path $repoRoot "config\agents_rule.md"
 if (Test-Path $agentsPath) {
     $agents = Get-Content $agentsPath -Raw
-    if ($agents -notmatch 'mcp__jp_lint__finalize') {
-        Write-Host ""
-        Write-Host "[codex-jp-harness] WARNING: AGENTS.md does not reference finalize rule." -ForegroundColor Yellow
-        Write-Host "[codex-jp-harness] Append the following block to your AGENTS.md:" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "   p. 日本語の技術進捗報告等を返す直前に ``mcp__jp_lint__finalize`` を必ず呼び、" -ForegroundColor Cyan
-        Write-Host "      ``ok: true`` を得たドラフトのみ返す。retry 上限 3 回。起動失敗時は自己検品で継続。" -ForegroundColor Cyan
-        Write-Host ""
+    if ($agents -match 'mcp__jp_lint__finalize') {
+        Write-Host "[codex-jp-harness] AGENTS.md already references finalize rule. OK." -ForegroundColor Green
+    } elseif ($AppendAgentsRule) {
+        if (-not (Test-Path $ruleBlockPath)) {
+            Write-Error "agents_rule.md not found at $ruleBlockPath"
+            exit 1
+        }
+        # Strip HTML comments from rule block before appending
+        $ruleRaw = Get-Content $ruleBlockPath -Raw
+        $rulePart = [regex]::Replace($ruleRaw, '(?s)<!--.*?-->', '').TrimStart()
+        # Ensure AGENTS.md ends with a newline before appending
+        if (-not $agents.EndsWith("`n")) {
+            Add-Content -Path $agentsPath -Value "`n" -NoNewline
+        }
+        Add-Content -Path $agentsPath -Value $rulePart -NoNewline
+        Write-Host "[codex-jp-harness] Appended finalize rule block to AGENTS.md" -ForegroundColor Green
     } else {
-        Write-Host "[codex-jp-harness] AGENTS.md references finalize rule. OK." -ForegroundColor Green
+        Write-Host ""
+        Write-Host "[codex-jp-harness] AGENTS.md does not yet reference the finalize rule." -ForegroundColor Yellow
+        Write-Host "[codex-jp-harness] Re-run with -AppendAgentsRule to append automatically," -ForegroundColor Yellow
+        Write-Host "[codex-jp-harness] or manually append the content of config\agents_rule.md." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "[codex-jp-harness] AGENTS.md not found; skipping rule check." -ForegroundColor Yellow
+    Write-Host "[codex-jp-harness] AGENTS.md not found; skipping rule handling." -ForegroundColor Yellow
 }
 
 Write-Host ""

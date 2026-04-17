@@ -26,13 +26,14 @@ uv sync
 ### 3. Codex に登録
 
 ```powershell
-pwsh scripts\install.ps1
+pwsh scripts\install.ps1 -AppendAgentsRule
 ```
 
 `install.ps1` は以下を自動実行:
-- `~/.codex/config.toml` に `[mcp_servers.jp_lint]` を追記
-- `~/.codex/config.toml` に hook 登録を追記（`codex_hooks = true`, `hooks = "..."`）
-- `~/.codex/AGENTS.md` の末尾に 7.p / 7.q を追記（既に存在する場合はスキップ）
+- `~/.codex/config.toml` に `[mcp_servers.jp_lint]` を追記（既存エントリは自分のリポパスで書き直し）
+- `-AppendAgentsRule` フラグ指定時: `~/.codex/AGENTS.md` に `config/agents_rule.md` の 7.p ルール本文を追記
+
+`-AppendAgentsRule` なしで実行した場合、AGENTS.md は自動更新されず、警告メッセージで手動追記を促します。既存の AGENTS.md に独自の 7.p がある場合はこちらを推奨。
 
 ### 4. Codex を再起動
 
