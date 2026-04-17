@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-17
+
+v0.1.0 リリース同日の追従リリース。7.p トリガー範囲の拡張と、リポ固有の規約文書（AGENTS.md）を追加。
+
 ### Added
 - Project-level `AGENTS.md` at repo root. Complements the global
   `~/.codex/AGENTS.md` with repo-specific context: stack, branch
