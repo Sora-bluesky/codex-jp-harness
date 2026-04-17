@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- AGENTS.md 7.p trigger scope widened from "progress reports" only to
+  "all Japanese technical writing": learning notes, docs, design memos,
+  release notes, release articles. Also explicit list of Obsidian Vault
+  sub-paths (`Learning/`, `Writing/`, `Notes/`, `Docs/`, `X-Radar/`,
+  `AI-News/`) that, when written to, trigger finalize. File append case
+  clarified: the appended chunk goes through finalize; existing body
+  stays untouched. Motivated by observed bare-identifier violations in
+  `MainVault/Learning/Rust learning note/*.md` (narrow slice, parity,
+  fail-close, regression, contract drift — all bare).
+
 ## [0.1.0] - 2026-04-17
 
 初回公開リリース。Zenn 記事 [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone) と同日公開。
