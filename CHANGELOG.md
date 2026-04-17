@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Project-level `AGENTS.md` at repo root. Complements the global
+  `~/.codex/AGENTS.md` with repo-specific context: stack, branch
+  protection rules, dogfooding intent, deprecation trigger, release
+  workflow. Codex and Claude Code read both when working here.
+- README.md "ディレクトリ構成" section showing the cloned repo layout
+  plus the `~/.codex/` files that install.ps1 / install.sh modify.
+  Helps users understand what they get and what the installer touches.
+
 ### Changed
 - AGENTS.md 7.p trigger scope widened from "progress reports" only to
   "all Japanese technical writing": learning notes, docs, design memos,
