@@ -6,14 +6,38 @@
 - Python 3.11 以上
 - [uv](https://github.com/astral-sh/uv) （推奨）または pip
 - Codex CLI がインストール済み (`~/.codex/` が存在する)
+- `git` が使えること
+- （パターン A で自動化するなら）ログイン済みの Codex CLI
 
-## 手順
+## パターン A: 超簡易インストール（Codex に任せる）
+
+手動コマンドを避けたい人はこちらが速い。Codex CLI に下記のプロンプトをそのまま貼り付けると、Codex が自律的に `git clone` → `uv sync` → `install.ps1` → 動作確認までを実行してくれる。
+
+````
+次のリポジトリを自分のマシンにインストールしてほしい:
+https://github.com/Sora-bluesky/codex-jp-harness
+
+手順:
+1. Documents\Projects\apps\ 配下に git clone する
+2. リポジトリ内で `uv sync` を実行する（uv 未インストールならインストールから）
+3. `pwsh scripts\install.ps1 -AppendAgentsRule` を実行する
+   （config.toml への MCP 登録と、AGENTS.md への 7.p ルール追記を一括で行う）
+4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
+5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
+
+各手順の結果を簡潔に報告しながら進めてよい。
+破壊的な操作が必要になった時だけ確認して。それ以外は自律的に進めてよい。
+````
+
+完了メッセージが出たら Codex CLI を再起動し、下の「動作確認」セクションで挙動を確かめる。
+
+## パターン B: 手動インストール
 
 ### 1. リポジトリを取得
 
 ```powershell
 cd C:\Users\<username>\Documents\Projects\apps\
-git clone https://github.com/sora-bluesky/codex-jp-harness.git
+git clone https://github.com/Sora-bluesky/codex-jp-harness.git
 cd codex-jp-harness
 ```
 
@@ -39,7 +63,7 @@ pwsh scripts\install.ps1 -AppendAgentsRule
 
 `config.toml` の変更は Codex 再起動で反映される。
 
-### 5. 動作確認
+## 動作確認
 
 Codex セッションを開き、以下を入力:
 
