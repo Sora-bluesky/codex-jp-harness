@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-17
+
+初回公開リリース。Zenn 記事 [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone) と同日公開。
+
 ### Documented
 - Zenn writeup published at
   https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone
