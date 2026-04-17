@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Test fixtures capturing the full before/after story:
+  `codex_actual_output.txt` (32 violations), `codex_after_voicevox.txt`
+  (4 violations), `codex_after_strengthened.txt` (0 violations).
 - Sentence length rule (`sentence_too_long`): flags sentences over 80 chars
   (or 50 chars if they contain code identifiers). VOICEVOX-inspired:
   sentences that cannot be spoken aloud in one breath are usually packed
@@ -15,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AGENTS.md 7.p now includes a "imagine the user plays the response
   through VOICEVOX" directive to shift Codex's register toward natural
   speakable Japanese.
+- AGENTS.md 7.p further strengthened with three enforcement clauses:
+  explicit trigger condition, explicit prohibition on skipping the tool,
+  and a self-check directive. This flipped Codex from 0% self-initiated
+  finalize calls to a working retry loop.
+
+### Milestone
+- **32 → 0 violations** (-100%) on the same progress report prompt,
+  across three progressive rule-tightening steps. No Stop hook required.
+  Confirms that the prompt-layer + MCP finalize gate hybrid is sufficient
+  for v0.1.0 ship.
 
 ### Fixed
 - Server identity `FastMCP("jp-lint")` → `FastMCP("jp_lint")` so the
