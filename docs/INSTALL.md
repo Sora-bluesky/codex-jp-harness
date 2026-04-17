@@ -2,9 +2,9 @@
 
 ## 前提条件
 
-- Windows 11 (PowerShell 7+)
+- macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
 - Python 3.11 以上
-- [uv](https://github.com/astral-sh/uv) （推奨）または pip
+- [uv](https://github.com/astral-sh/uv)（推奨）または pip
 - Codex CLI がインストール済み (`~/.codex/` が存在する)
 - `git` が使えること
 - （パターン A で自動化するなら）ログイン済みの Codex CLI
@@ -18,9 +18,13 @@
 https://github.com/Sora-bluesky/codex-jp-harness
 
 手順:
-1. Documents\Projects\apps\ 配下に git clone する
+1. 任意のプロジェクト用ディレクトリに git clone する
+   (例: Windows なら %USERPROFILE%\Documents\Projects\apps\ など、
+    macOS/Linux なら ~/src/ や ~/Projects/ など)
 2. リポジトリ内で `uv sync` を実行する（uv 未インストールならインストールから）
-3. `pwsh scripts\install.ps1 -AppendAgentsRule` を実行する
+3. OS に応じたインストールスクリプトを実行する
+   - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
+   - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
    （config.toml への MCP 登録と、AGENTS.md への 7.p ルール追記を一括で行う）
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
 5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
@@ -49,15 +53,25 @@ uv sync
 
 ### 3. Codex に登録
 
+**macOS / Linux / Git Bash on Windows**:
+
+```bash
+bash scripts/install.sh --append-agents-rule
+```
+
+**Windows (PowerShell)**:
+
 ```powershell
 pwsh scripts\install.ps1 -AppendAgentsRule
 ```
 
-`install.ps1` は以下を自動実行:
+どちらのスクリプトも以下を自動実行:
 - `~/.codex/config.toml` に `[mcp_servers.jp_lint]` を追記（既存エントリは自分のリポパスで書き直し）
-- `-AppendAgentsRule` フラグ指定時: `~/.codex/AGENTS.md` に `config/agents_rule.md` の 7.p ルール本文を追記
+- `--append-agents-rule` / `-AppendAgentsRule` フラグ指定時: `~/.codex/AGENTS.md` に `config/agents_rule.md` の 7.p ルール本文を追記
 
-`-AppendAgentsRule` なしで実行した場合、AGENTS.md は自動更新されず、警告メッセージで手動追記を促します。既存の AGENTS.md に独自の 7.p がある場合はこちらを推奨。
+フラグなしで実行した場合、AGENTS.md は自動更新されず、警告メッセージで手動追記を促します。既存の AGENTS.md に独自の 7.p がある場合はこちらを推奨。
+
+install.sh は Git Bash / WSL 検出時に `cygpath` で Windows 形式のパスに自動変換します。
 
 ### 4. Codex を再起動
 
@@ -97,8 +111,16 @@ Issue #17532 のため、リポジトリローカルの `config.toml` では hoo
 
 ## アンインストール
 
+**macOS / Linux / Git Bash on Windows**:
+
+```bash
+bash scripts/uninstall.sh
+```
+
+**Windows (PowerShell)**:
+
 ```powershell
 pwsh scripts\uninstall.ps1
 ```
 
-`uninstall.ps1` は `config.toml` から関連エントリを削除する（`AGENTS.md` の編集は手動）。
+どちらも `config.toml` から関連エントリを削除します（`AGENTS.md` の編集は手動）。
