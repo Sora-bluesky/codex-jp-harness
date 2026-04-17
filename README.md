@@ -2,6 +2,8 @@
 
 Codex CLI の日本語出力を強制的に品質担保するための MCP 検品ゲート + Stop hook ハーネス。
 
+📝 **設計の経緯・実測データ（32→0 違反）の解説記事**: [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone)
+
 > ⚠️ **本ツールは暫定対策です**。OpenAI が Codex CLI に Claude Code 水準の日本語対応を公式実装するまでの繋ぎとして設計されています。公式対応が出揃った時点でこのリポジトリは archive されます。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照してください。
 
 ## なぜ存在するのか
@@ -130,6 +132,6 @@ MIT License。[LICENSE](LICENSE) 参照。
 
 ## 関連リンク
 
-- Zenn 記事（公開後にリンク追加予定）
+- Zenn 記事: [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone)（設計経緯・32→0 違反の実測・VOICEVOX 発見）
 - [OpenAI Codex CLI](https://github.com/openai/codex)
 - 関連 Issue: [#17132](https://github.com/openai/codex/issues/17132), [#17532](https://github.com/openai/codex/issues/17532), [#18189](https://github.com/openai/codex/issues/18189)

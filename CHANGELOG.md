@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documented
+- Zenn writeup published at
+  https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone
+  ("Codex の日本語を救ったのは「ずんだもん」だった"). README now links
+  to it as the primary narrative for the 32→0 milestone, the VOICEVOX
+  register-switch hypothesis, and the prompt-layer vs runtime-layer
+  tradeoffs.
+
 ### Added
 - Cross-platform support. `scripts/install.sh` and `scripts/uninstall.sh`
   mirror the PowerShell scripts for macOS, Linux, and Git Bash on Windows.
