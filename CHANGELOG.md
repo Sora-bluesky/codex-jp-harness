@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `config/agents_rule.md` gains three post-v0.1.0 clauses to cover failure
+  modes observed in a real Codex session log:
+  - **Session-wide identifier rule**: code identifiers (file names, func
+    names, branch names, PR numbers, task IDs, param names, commands)
+    must be backtick-wrapped in every Japanese output, not only in
+    report-shaped messages that trigger finalize.
+  - **"Check first, then call" is banned**: Codex must call finalize
+    first and fall back only on actual error. Saying "let me check if
+    jp_lint is usable" is itself a forgot-to-call symptom.
+  - **Ambiguous reference words are banned**: phrases like 対象テスト /
+    広い確認 / 前面 / 公開面 / 一式 force the reader to guess scope.
+    Replace with concrete command/module names (e.g. `cargo test -p X`).
 - Test fixtures capturing the full before/after story:
   `codex_actual_output.txt` (32 violations), `codex_after_voicevox.txt`
   (4 violations), `codex_after_strengthened.txt` (0 violations).
