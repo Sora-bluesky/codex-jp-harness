@@ -1,0 +1,16 @@
+# Shell scripts must keep LF line endings even when checked out on Windows,
+# otherwise bash on macOS/Linux fails with "bad interpreter" errors.
+*.sh text eol=lf
+
+# PowerShell can handle LF but CRLF is conventional on Windows.
+*.ps1 text eol=crlf
+
+# Python, YAML, TOML: let git normalize based on platform conventions.
+*.py    text
+*.pyi   text
+*.yaml  text
+*.yml   text
+*.toml  text
+
+# Markdown: LF (universal)
+*.md text eol=lf

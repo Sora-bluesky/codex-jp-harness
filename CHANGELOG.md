@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Cross-platform support. `scripts/install.sh` and `scripts/uninstall.sh`
+  mirror the PowerShell scripts for macOS, Linux, and Git Bash on Windows.
+  install.sh auto-converts MSYS paths to native Windows form via
+  `cygpath` when running on Git Bash so Codex (non-MSYS process) can
+  spawn the venv python correctly.
+- README and docs/INSTALL.md now show both install paths side by side.
+  pyproject.toml classifier changed to "OS Independent".
 - `config/agents_rule.md` gains three post-v0.1.0 clauses to cover failure
   modes observed in a real Codex session log:
   - **Session-wide identifier rule**: code identifiers (file names, func
