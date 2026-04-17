@@ -1,0 +1,38 @@
+# codex-jp-harness: banned terms & thresholds
+# Single source of truth for Japanese report quality gate rules.
+
+version: 1
+
+# Banned English terms that should be paraphrased in Japanese.
+# Case-insensitive match with word boundaries.
+banned:
+  - { term: slice,          suggest: "限定的な変更、今回の範囲" }
+  - { term: parity,         suggest: "差、差分、揃え" }
+  - { term: done,           suggest: "完了" }
+  - { term: active,         suggest: "進行中" }
+  - { term: ready,          suggest: "レビュー可能な状態、下書きを外す" }
+  - { term: squash,         suggest: "まとめてマージ" }
+  - { term: dispatch,       suggest: "振り分け、受け渡し" }
+  - { term: handoff,        suggest: "引き継ぎメモ" }
+  - { term: regression,     suggest: "回帰テスト、再発防止テスト" }
+  - { term: fail-close,     suggest: "不正な入力を拒否する、安全側で止める" }
+  - { term: fast-forward,   suggest: "早送り同期" }
+  - { term: contract drift, suggest: "契約のずれ、仕様のずれ" }
+
+# Code identifier pattern: tokens containing at least one of . _ / -
+# (natural English words don't match; only code-like identifiers do)
+identifier_pattern: "[A-Za-z_][A-Za-z0-9]*[._/-][A-Za-z0-9_./-]+"
+
+# Sentence splitter (Japanese period or newline)
+sentence_split_pattern: "[。\n]"
+
+# Max code identifiers per sentence (violation when exceeded)
+identifier_limit_per_sentence: 2
+
+# Phase B: noun-phrase chain detection (placeholders, implemented in Phase B)
+noun_chain:
+  enabled: false
+  no_chain_threshold: 3
+  identifier_chain_threshold: 3
+  katakana_chain_threshold: 3
+  allowlist: []

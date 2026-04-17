@@ -8,12 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Phase 0: Repository skeleton — README, LICENSE (MIT), .gitignore, pyproject.toml, GitHub Actions, Issue/PR templates
-
-## [0.1.0] - TBD (Phase A release target)
-
-### Added
-- MCP server (`jp-lint`) with `finalize` tool
-- Rule engine: banned terms, bare identifier detection, excessive identifiers per sentence
-- `banned_terms.yaml` with 12 initial terms
-- Install/uninstall scripts for Windows
+- Phase A complete: MCP server (`jp-lint`) with `finalize` tool exposing three detection rules
+  - Banned term detection (12 initial terms from `banned_terms.yaml`)
+  - Bare identifier detection (code-like tokens not wrapped in backticks)
+  - Too-many-identifiers-per-sentence detection (default limit: 2)
+  - Code blocks and inline code are excluded from detection
+- `src/codex_jp_harness/rules.py` — pure-function lint engine
+- `src/codex_jp_harness/server.py` — FastMCP server exposing `finalize(draft)`
+- `config/banned_terms.yaml` — single source of truth for rules
+- `tests/test_rules.py` — 24 passing unit tests
+- `tests/fixtures/{bad,good}_samples.md` — real-world samples
+- `scripts/install.ps1` — registers MCP server in `~/.codex/config.toml`
+- `scripts/uninstall.ps1` — removes MCP server registration
+- Phase 0 complete: Repository skeleton (README, LICENSE, CI, docs)
