@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Sentence length rule (`sentence_too_long`): flags sentences over 80 chars
+  (or 50 chars if they contain code identifiers). VOICEVOX-inspired:
+  sentences that cannot be spoken aloud in one breath are usually packed
+  too densely.
+- AGENTS.md 7.p now includes a "imagine the user plays the response
+  through VOICEVOX" directive to shift Codex's register toward natural
+  speakable Japanese.
+
+### Fixed
+- Server identity `FastMCP("jp-lint")` → `FastMCP("jp_lint")` so the
+  advertised name matches the config.toml key.
+- `install.ps1` now registers the repo's `.venv` python executable
+  instead of relying on system `python`, which lacked `mcp[cli]` and
+  `pyyaml`. The server was silently ImportError-ing on startup.
+
+### Added
 - Phase A complete: MCP server (`jp-lint`) with `finalize` tool exposing three detection rules
   - Banned term detection (12 initial terms from `banned_terms.yaml`)
   - Bare identifier detection (code-like tokens not wrapped in backticks)

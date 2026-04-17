@@ -38,12 +38,16 @@ class RuleConfig:
     identifier_pattern: str = r"[A-Za-z_][A-Za-z0-9]*[._/-][A-Za-z0-9_./-]+"
     sentence_split_pattern: str = r"[。\n]"
     identifier_limit_per_sentence: int = 2
+    sentence_length_enabled: bool = True
+    sentence_max_chars: int = 80
+    sentence_max_chars_with_identifiers: int = 50
 
 
 def load_rules(yaml_path: Path) -> RuleConfig:
     """Load banned_terms.yaml into a RuleConfig."""
     with yaml_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
+    length_cfg = raw.get("sentence_length", {}) or {}
     return RuleConfig(
         banned=raw.get("banned", []),
         identifier_pattern=raw.get("identifier_pattern", RuleConfig.identifier_pattern),
@@ -52,6 +56,14 @@ def load_rules(yaml_path: Path) -> RuleConfig:
         ),
         identifier_limit_per_sentence=raw.get(
             "identifier_limit_per_sentence", RuleConfig.identifier_limit_per_sentence
+        ),
+        sentence_length_enabled=length_cfg.get(
+            "enabled", RuleConfig.sentence_length_enabled
+        ),
+        sentence_max_chars=length_cfg.get("max_chars", RuleConfig.sentence_max_chars),
+        sentence_max_chars_with_identifiers=length_cfg.get(
+            "max_chars_with_identifiers",
+            RuleConfig.sentence_max_chars_with_identifiers,
         ),
     )
 
@@ -150,10 +162,54 @@ def detect_too_many_identifiers(text: str, cfg: RuleConfig) -> list[Violation]:
     return violations
 
 
+def detect_sentence_length(text: str, cfg: RuleConfig) -> list[Violation]:
+    """Flag sentences that exceed the VOICEVOX-inspired length ceiling.
+
+    Rationale: if a sentence cannot be spoken aloud in one breath, it is
+    almost always packed too densely with identifiers or clauses. Sentences
+    containing code identifiers get a stricter limit.
+    """
+    if not cfg.sentence_length_enabled:
+        return []
+
+    violations: list[Violation] = []
+    scan = _strip_code_blocks(text)
+    id_pattern = re.compile(cfg.identifier_pattern)
+    splitter = re.compile(cfg.sentence_split_pattern)
+
+    cursor = 0
+    for sentence in splitter.split(scan):
+        stripped = sentence.strip()
+        if stripped:
+            masked = _mask_inline_code(stripped)
+            length = len(stripped)
+            has_identifier = bool(id_pattern.search(masked))
+            limit = (
+                cfg.sentence_max_chars_with_identifiers
+                if has_identifier
+                else cfg.sentence_max_chars
+            )
+            if length > limit:
+                line = 1 + scan[:cursor].count("\n")
+                violations.append(
+                    Violation(
+                        rule="sentence_too_long",
+                        line=line,
+                        count=length,
+                        limit=limit,
+                        snippet=stripped[:100],
+                        fix="文を分割する。音読して一息で読めないなら長すぎる。",
+                    )
+                )
+        cursor += len(sentence) + 1
+    return violations
+
+
 def lint(text: str, cfg: RuleConfig) -> list[Violation]:
     """Run all enabled detection rules and return violations."""
     return (
         detect_banned_terms(text, cfg)
         + detect_bare_identifiers(text, cfg)
         + detect_too_many_identifiers(text, cfg)
+        + detect_sentence_length(text, cfg)
     )

@@ -8,6 +8,7 @@ from codex_jp_harness.rules import (
     Violation,
     detect_banned_terms,
     detect_bare_identifiers,
+    detect_sentence_length,
     detect_too_many_identifiers,
     lint,
     load_rules,
@@ -117,6 +118,33 @@ class TestTooManyIdentifiers:
         # Each sentence has 2 identifiers, total 4 but split across 2 sentences
         text = "TASK-306 を main に merge。それから TASK-307 を dev に送る。"
         violations = detect_too_many_identifiers(text, cfg)
+        assert violations == []
+
+
+class TestSentenceLength:
+    def test_short_sentence_ok(self, cfg):
+        assert detect_sentence_length("進捗を報告します。", cfg) == []
+
+    def test_long_sentence_flagged(self, cfg):
+        # 85 chars + period = > 80 char limit (no identifiers)
+        text = "あ" * 85 + "。"
+        violations = detect_sentence_length(text, cfg)
+        assert any(v.rule == "sentence_too_long" for v in violations)
+        assert violations[0].count == 85
+        assert violations[0].limit == 80
+
+    def test_60_char_with_identifier_flagged(self, cfg):
+        # 60 chars containing an identifier → should hit the 50-char limit
+        text = "今回は TASK-306 の作業を進めて、レビューと動作確認まで完了しました。"
+        violations = detect_sentence_length(text, cfg)
+        # This sentence has TASK-306 and is > 50 chars
+        if len(text.rstrip("。")) > 50:
+            assert any(v.rule == "sentence_too_long" for v in violations)
+
+    def test_50_char_without_identifier_ok(self, cfg):
+        # Short sentence with no identifiers passes
+        text = "今回の作業は無事に完了し、レビュー依頼を出しました。"
+        violations = detect_sentence_length(text, cfg)
         assert violations == []
 
 

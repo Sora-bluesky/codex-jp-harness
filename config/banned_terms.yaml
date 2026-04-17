@@ -29,6 +29,14 @@ sentence_split_pattern: "[。\n]"
 # Max code identifiers per sentence (violation when exceeded)
 identifier_limit_per_sentence: 2
 
+# Sentence length ceiling (VOICEVOX-inspired: a sentence that cannot be spoken
+# aloud in one breath is probably packed too densely).
+# Japanese character count (multibyte chars count as 1).
+sentence_length:
+  enabled: true
+  max_chars: 80                       # General ceiling for any sentence
+  max_chars_with_identifiers: 50      # Stricter if the sentence carries code identifiers
+
 # Phase B: noun-phrase chain detection (placeholders, implemented in Phase B)
 noun_chain:
   enabled: false
