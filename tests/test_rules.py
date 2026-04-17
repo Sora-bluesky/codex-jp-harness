@@ -60,6 +60,15 @@ class TestBannedTerms:
         violations = detect_banned_terms("handoff を更新しました", cfg)
         assert any(v.term == "handoff" for v in violations)
 
+    def test_japanese_jargon_bekitou_detected(self, cfg):
+        # Japanese jargon banned for reader clarity
+        violations = detect_banned_terms("このスクリプトは冪等に動く", cfg)
+        assert any(v.term == "冪等" for v in violations)
+
+    def test_japanese_jargon_in_backticks_ignored(self, cfg):
+        violations = detect_banned_terms("`冪等` は idempotent の和訳", cfg)
+        assert not any(v.term == "冪等" for v in violations)
+
     def test_clean_text_no_violations(self, cfg):
         violations = detect_banned_terms(
             "進捗を報告します。実装を完了し、テストが通りました。", cfg

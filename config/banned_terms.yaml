@@ -18,6 +18,8 @@ banned:
   - { term: fail-close,     suggest: "不正な入力を拒否する、安全側で止める" }
   - { term: fast-forward,   suggest: "早送り同期" }
   - { term: contract drift, suggest: "契約のずれ、仕様のずれ" }
+  # Japanese jargon that breaks on reading aloud
+  - { term: 冪等,           suggest: "何度実行しても同じ結果、繰り返しても安全" }
 
 # Code identifier pattern: tokens containing at least one of . _ / -
 # (natural English words don't match; only code-like identifiers do)
