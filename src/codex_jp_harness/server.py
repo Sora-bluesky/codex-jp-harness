@@ -13,7 +13,12 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from codex_jp_harness.rules import Violation, lint, load_rules
+from codex_jp_harness.rules import (
+    Violation,
+    lint,
+    load_rules,
+    resolve_user_config_path,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 RULES_PATH = REPO_ROOT / "config" / "banned_terms.yaml"
@@ -43,7 +48,7 @@ def finalize(draft: str) -> dict[str, Any]:
         合格 (ERROR が 0 件): ``{"ok": True}``
         不合格: ``{"ok": False, "violations": [...], "summary": "..."}``
     """
-    cfg = load_rules(RULES_PATH)
+    cfg = load_rules(RULES_PATH, resolve_user_config_path())
     violations = lint(draft, cfg)
     error_violations = [v for v in violations if (v.severity or "ERROR") == "ERROR"]
     if not error_violations:

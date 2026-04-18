@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   修正、WARNING は強く推奨、INFO は参考扱い。
 - `finalize` の summary 文字列に severity 別件数を含める
   (例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`)。
+- **User-local override (rc2)**: `~/.codex/jp_lint.yaml` を置くと、
+  バンドル済み `banned_terms.yaml` に対して `disable` / `overrides` /
+  `add` / `thresholds` を適用できる。探索優先順位は
+  `$CODEX_JP_HARNESS_USER_CONFIG` → `$XDG_CONFIG_HOME/codex-jp-harness/jp_lint.yaml`
+  → `~/.codex/jp_lint.yaml`。存在しなければ無視してバンドル値を使う。
+- **`codex-jp-tune` CLI (rc2)**: ユーザー設定を対話的に編集する
+  console script を追加。サブコマンドは `path` / `show` / `disable` /
+  `enable` / `set-severity` / `add` / `remove`。pyyaml のみ依存。
 
 ## [0.1.3] - 2026-04-18
 
