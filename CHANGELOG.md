@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-18
+
+v0.2.0 リリース後に発見された整合性問題を一括修正する patch リリース。機能追加はなし、ドキュメントと skill 配布形式の correctness 修正のみ。
+
 ### Fixed
 - **`jp-harness-tune` skill を Codex CLI 形式に書き換え**。v0.2.0 では誤って
   Claude Code skill 形式 (`skill.md` 小文字・Claude Code frontmatter) で同梱して
