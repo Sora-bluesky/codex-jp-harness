@@ -5,6 +5,7 @@ Pure functions — no I/O except load_rules. All detection is via regex.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -45,10 +46,80 @@ class RuleConfig:
     sentence_max_chars_with_identifiers: int = 50
 
 
-def load_rules(yaml_path: Path) -> RuleConfig:
-    """Load banned_terms.yaml into a RuleConfig."""
+def resolve_user_config_path() -> Path:
+    """Return the user-local override path (may not exist).
+
+    Priority:
+      1. $CODEX_JP_HARNESS_USER_CONFIG (absolute path)
+      2. $XDG_CONFIG_HOME/codex-jp-harness/jp_lint.yaml
+      3. ~/.codex/jp_lint.yaml
+    """
+    env = os.environ.get("CODEX_JP_HARNESS_USER_CONFIG")
+    if env:
+        return Path(env).expanduser()
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg).expanduser() / "codex-jp-harness" / "jp_lint.yaml"
+    return Path.home() / ".codex" / "jp_lint.yaml"
+
+
+def _apply_user_overrides(raw: dict[str, Any], user_raw: dict[str, Any]) -> dict[str, Any]:
+    """Merge a user override dict into the bundled rules dict.
+
+    Schema of user_raw:
+      disable:    list of term strings to drop from banned
+      overrides:  mapping {term: {severity, suggest, category, katakana_form}}
+      add:        list of banned-entry dicts (same shape as bundled entries)
+      thresholds: partial override for identifier_limit_per_sentence,
+                  identifier_pattern, sentence_split_pattern, sentence_length
+    """
+    merged = dict(raw)
+    banned = list(merged.get("banned", []) or [])
+
+    disable = set(user_raw.get("disable", []) or [])
+    if disable:
+        banned = [e for e in banned if e.get("term") not in disable]
+
+    overrides = user_raw.get("overrides", {}) or {}
+    if overrides:
+        for entry in banned:
+            term = entry.get("term", "")
+            if term in overrides and isinstance(overrides[term], dict):
+                entry.update(overrides[term])
+
+    add = user_raw.get("add", []) or []
+    if add:
+        banned.extend(e for e in add if isinstance(e, dict) and e.get("term"))
+
+    merged["banned"] = banned
+
+    thresholds = user_raw.get("thresholds", {}) or {}
+    for key in ("identifier_pattern", "sentence_split_pattern", "identifier_limit_per_sentence"):
+        if key in thresholds:
+            merged[key] = thresholds[key]
+    if "sentence_length" in thresholds and isinstance(thresholds["sentence_length"], dict):
+        base_len = dict(merged.get("sentence_length", {}) or {})
+        base_len.update(thresholds["sentence_length"])
+        merged["sentence_length"] = base_len
+
+    return merged
+
+
+def load_rules(yaml_path: Path, user_yaml_path: Path | None = None) -> RuleConfig:
+    """Load banned_terms.yaml into a RuleConfig.
+
+    If ``user_yaml_path`` is given and the file exists, its entries are
+    merged on top of the bundled rules (disable/overrides/add/thresholds).
+    """
     with yaml_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
+
+    if user_yaml_path is not None and user_yaml_path.exists():
+        with user_yaml_path.open("r", encoding="utf-8") as f:
+            user_raw = yaml.safe_load(f) or {}
+        if isinstance(user_raw, dict):
+            raw = _apply_user_overrides(raw, user_raw)
+
     length_cfg = raw.get("sentence_length", {}) or {}
     return RuleConfig(
         banned=raw.get("banned", []),
