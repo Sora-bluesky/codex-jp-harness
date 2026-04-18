@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (toward v0.2.0)
+## [0.2.0] - 2026-04-18
+
+v0.1.x からの大きな拡張。禁止語を倍増し、severity 階層で「止めるべき違反」と「参考情報」を分離し、利用者側で規則を調整できる仕組み (user-local override + `codex-jp-tune` CLI + Claude Code skill) を追加した。
+
+### Added
 - **banned_terms 拡張**: 13 → 26 語。新規追加は普遍カテゴリから抽出
   (process: `merge`, `rebase`, `cherry-pick`; concepts: `fingerprint`,
   `fallback`, `fixture`, `payload`, `helper`, `wrapper`; state:
@@ -19,28 +23,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `katakana_form` フィールドを追加。後方互換のため省略時はデフォルト値
   (`severity=ERROR`, `category=other`, `katakana_form=""`)。
 - `Violation` データクラスに `severity` と `category` フィールド追加。
-
-### Changed (toward v0.2.0)
-- `agents_rule.md`: severity 階層の説明を追加。Codex は ERROR を必ず
-  修正、WARNING は強く推奨、INFO は参考扱い。
-- `finalize` の summary 文字列に severity 別件数を含める
-  (例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`)。
-- **User-local override (rc2)**: `~/.codex/jp_lint.yaml` を置くと、
-  バンドル済み `banned_terms.yaml` に対して `disable` / `overrides` /
-  `add` / `thresholds` を適用できる。探索優先順位は
+- **User-local override**: `~/.codex/jp_lint.yaml` を置くと、バンドル済み
+  `banned_terms.yaml` に対して `disable` / `overrides` / `add` /
+  `thresholds` を適用できる。探索優先順位は
   `$CODEX_JP_HARNESS_USER_CONFIG` → `$XDG_CONFIG_HOME/codex-jp-harness/jp_lint.yaml`
-  → `~/.codex/jp_lint.yaml`。存在しなければ無視してバンドル値を使う。
-- **`codex-jp-tune` CLI (rc2)**: ユーザー設定を対話的に編集する
-  console script を追加。サブコマンドは `path` / `show` / `disable` /
-  `enable` / `set-severity` / `add` / `remove`。pyyaml のみ依存。
-- **README「違反検出時の対処法」section**: severity 三段階の意味、
-  user-local override の yaml 例、`codex-jp-tune` の使い方、典型的な
-  運用フローを統合。インストール直後の読者が最初につまずく
-  「ok:false が返ったらどうするか」の導線を整備。
+  → `~/.codex/jp_lint.yaml`。存在しなければバンドル値がそのまま使われる。
+- **`codex-jp-tune` CLI**: ユーザー設定を対話的に編集する console script。
+  サブコマンドは `path` / `show` / `disable` / `enable` / `set-severity` /
+  `add` / `remove`。pyyaml のみ依存。
 - **`jp-harness-tune` Claude Code skill**: `skills/jp-harness-tune/skill.md`
   を同梱。ルールを安易に緩めないよう、無効化・severity 調整・追加の前に
   必ず判断支援ステップを挟み、`codex-jp-tune` を実行する。
   `~/.claude/skills/` に配置すると `/jp-harness-tune` で呼べる。
+- **README「違反検出時の対処法」section**: severity 三段階の意味、
+  user-local override の yaml 例、`codex-jp-tune` の使い方、典型的な
+  運用フローを統合。インストール直後の読者が最初につまずく
+  「`ok:false` が返ったらどうするか」の導線を整備。
+
+### Changed
+- `agents_rule.md`: severity 階層の説明を追加。Codex は ERROR を必ず
+  修正、WARNING は強く推奨、INFO は参考扱い。
+- `finalize` の summary 文字列に severity 別件数を含める
+  (例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`)。
 
 ## [0.1.3] - 2026-04-18
 
