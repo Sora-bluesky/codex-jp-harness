@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Sanitized test fixtures and documentation: removed project-specific
-  identifiers (`winsmux-*`, `TASK-278`/`-289`/`-306`/`-291` etc.) and
-  personal Obsidian Vault sub-paths (`X-Radar/`, `AI-News/`). Fixtures now
-  use generic placeholder names (`sample-core.ps1`, `my-app/src-tauri`,
-  `TASK-101`〜`TASK-106`) that retain the same violation counts but carry
-  no real-project context.
+  identifiers (a previous downstream project name and several internal
+  task IDs of the form TASK-NNN) and personal Obsidian Vault sub-paths.
+  Fixtures now use generic placeholder names (`sample-core.ps1`,
+  `my-app/src-tauri`, `TASK-101`〜`TASK-106`) that retain the same
+  violation counts but carry no real-project context.
 - Added `.mailmap` so `git log` displays the historical commit author as
   the project alias (raw commits on the remote remain unchanged).
 - New CI workflow (`.github/workflows/sanitize.yml`) rejects any tracked
