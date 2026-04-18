@@ -133,8 +133,16 @@ https://github.com/Sora-bluesky/codex-jp-harness
    - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
    (Codex config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う)
-4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
-5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
+4. jp-harness-tune skill を Codex ユーザースキルとして配置する
+   - Windows (PowerShell):
+     `New-Item -ItemType Directory -Force $HOME\.codex\skills\jp-harness-tune | Out-Null`
+     `Copy-Item skills\jp-harness-tune\SKILL.md $HOME\.codex\skills\jp-harness-tune\`
+   - macOS / Linux / Git Bash:
+     `mkdir -p ~/.codex/skills/jp-harness-tune`
+     `cp skills/jp-harness-tune/SKILL.md ~/.codex/skills/jp-harness-tune/`
+   (Codex CLI の入力欄で `$` から `$jp-harness-tune` として呼び出せるようになる)
+5. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
+6. 完了したら、Codex CLI の再起動が必要であることを私に伝える
 
 各手順の結果を簡潔に報告しながら進めてよい。
 破壊的な操作が必要になった時だけ確認して。それ以外は自律的に進めてよい。

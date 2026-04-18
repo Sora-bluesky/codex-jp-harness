@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **README パターン A (超簡易インストール) に skill 配置ステップを追加**。
+  v0.2.1 で導入した `jp-harness-tune` Codex skill の配置を Codex に委任する
+  手順 (`~/.codex/skills/jp-harness-tune/SKILL.md` へのコピー) をパターン A
+  の中核フローに組み込み、全 5 手順から全 6 手順に拡張。これまで対処法
+  section の「任意」扱いだったが、Codex に任せる前提の「超簡易インストール」
+  では一括で済ませる方が自然。
+
 ## [0.2.1] - 2026-04-18
 
 v0.2.0 リリース後に発見された整合性問題を一括修正する patch リリース。機能追加はなし、ドキュメントと skill 配布形式の correctness 修正のみ。
