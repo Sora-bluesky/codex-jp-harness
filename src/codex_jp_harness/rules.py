@@ -26,6 +26,8 @@ class Violation:
     limit: int = 0
     suggest: str = ""
     fix: str = ""
+    severity: str = "ERROR"
+    category: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -107,6 +109,8 @@ def detect_banned_terms(text: str, cfg: RuleConfig) -> list[Violation]:
         if not term:
             continue
         suggest = entry.get("suggest", "")
+        severity = entry.get("severity", "ERROR")
+        category = entry.get("category", "")
         pattern = re.compile(
             r"(?<![A-Za-z0-9_])" + re.escape(term) + r"(?![A-Za-z0-9_-])",
             re.IGNORECASE,
@@ -121,6 +125,8 @@ def detect_banned_terms(text: str, cfg: RuleConfig) -> list[Violation]:
                         term=term,
                         snippet=raw_line.strip()[:100],
                         suggest=suggest,
+                        severity=severity,
+                        category=category,
                     )
                 )
     return violations

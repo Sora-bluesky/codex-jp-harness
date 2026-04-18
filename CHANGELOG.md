@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (toward v0.2.0)
+- **banned_terms 拡張**: 13 → 26 語。新規追加は普遍カテゴリから抽出
+  (process: `merge`, `rebase`, `cherry-pick`; concepts: `fingerprint`,
+  `fallback`, `fixture`, `payload`, `helper`, `wrapper`; state:
+  `pending`, `idle`; review: `verdict`, `blocker`)。
+- **severity 三段階**: `ERROR` / `WARNING` / `INFO`。`finalize` は ERROR
+  が 0 件なら `ok: true` を返し、WARNING/INFO は `advisories` で通知する。
+  ERROR が 1 件でも残れば `ok: false`。修正は MUST。
+- **banned_terms.yaml schema v2**: 各エントリに `severity`, `category`,
+  `katakana_form` フィールドを追加。後方互換のため省略時はデフォルト値
+  (`severity=ERROR`, `category=other`, `katakana_form=""`)。
+- `Violation` データクラスに `severity` と `category` フィールド追加。
+
+### Changed (toward v0.2.0)
+- `agents_rule.md`: severity 階層の説明を追加。Codex は ERROR を必ず
+  修正、WARNING は強く推奨、INFO は参考扱い。
+- `finalize` の summary 文字列に severity 別件数を含める
+  (例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`)。
+
 ## [0.1.3] - 2026-04-18
 
 配布安全性 patch。配布物に残っていた特定プロジェクト名・個人 Vault パスを匿名化し、markdown link 内 URL の誤検出も併せて修正。

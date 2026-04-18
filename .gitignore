@@ -24,9 +24,10 @@ uv.lock
 Thumbs.db
 desktop.ini
 
-# Editor
+# Editor / AI assistant
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~
