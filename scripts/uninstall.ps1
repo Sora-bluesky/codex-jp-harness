@@ -32,5 +32,5 @@ if ($updated -eq $config) {
 
 Write-Host ""
 Write-Host "[codex-jp-harness] Manual step required:" -ForegroundColor Yellow
-Write-Host "[codex-jp-harness]   1. Edit ~/.codex/AGENTS.md and remove the 7.p (and 7.q if present) rules." -ForegroundColor Yellow
+Write-Host "[codex-jp-harness]   1. Edit ~/.codex/AGENTS.md and remove the quality-gate rule block." -ForegroundColor Yellow
 Write-Host "[codex-jp-harness]   2. Restart Codex CLI." -ForegroundColor Yellow
