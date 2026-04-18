@@ -108,6 +108,20 @@ class TestBareIdentifiers:
         violations = detect_bare_identifiers("slice を進めた", cfg)
         assert violations == []
 
+    def test_markdown_link_url_not_flagged(self, cfg):
+        # URLs inside [text](url) markdown links should not trigger
+        # bare_identifier (URLs naturally contain . / -).
+        text = "詳細は [こちら](https://example.com/path/to/page.html) を参照してください。"
+        violations = detect_bare_identifiers(text, cfg)
+        assert violations == []
+
+    def test_markdown_link_text_still_scanned(self, cfg):
+        # The label part of [text](url) is NOT masked, so identifiers in
+        # the label still count.
+        text = "詳細は [TASK-101](https://example.com) を参照してください。"
+        violations = detect_bare_identifiers(text, cfg)
+        assert any(v.token == "TASK-101" for v in violations)
+
 
 class TestTooManyIdentifiers:
     def test_four_identifiers_flagged(self, cfg):
@@ -119,7 +133,7 @@ class TestTooManyIdentifiers:
         assert any(v.rule == "too_many_identifiers" for v in violations)
 
     def test_two_identifiers_ok(self, cfg):
-        text = "TASK-306 を winsmux-core.ps1 で対応しました。"
+        text = "FAKE-001 を sample-core.ps1 で対応しました。"
         violations = detect_too_many_identifiers(text, cfg)
         assert violations == []
 
@@ -174,8 +188,8 @@ class TestLintIntegration:
     def test_clean_report_passes(self, cfg):
         text = (
             "進捗を報告します。\n"
-            "実装: `winsmux-core.ps1` の差を埋めました。\n"
-            "確認: `Pester` で `245/245` 通過しました。\n"
+            "実装: `sample-core.ps1` の差を埋めました。\n"
+            "確認: `pytest` で `245/245` 通過しました。\n"
             "次の一手: レビュー依頼を出します。"
         )
         violations = lint(text, cfg)

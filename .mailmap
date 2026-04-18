@@ -1,0 +1,7 @@
+# Mailmap for codex-jp-harness
+# Provides display-level alias for commit author identities.
+# Note: this only affects how `git log` formats output. Raw commit
+# objects on the remote retain the original author email.
+
+sora <noreply@example.com> <komei1118ph@gmail.com>
+sora <noreply@example.com> Sora-bluesky <komei1118ph@gmail.com>

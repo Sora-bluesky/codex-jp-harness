@@ -1,39 +1,39 @@
 やったこと
 
-- `TASK-306` を完了しました。
-- `prompt_transport=stdin` を pane 受け渡し側で扱えるようにしました。
+- `TASK-101` を完了しました。
+- `prompt_transport=stdin` をペイン受け渡し側で扱えるようにしました。
 - `exec_mode` は安全側で、ファイル経由のまま固定しました。
-- `TASK-289` も完了しました。
-- `desktop-summary --stream --json` を追加しました。
+- `TASK-102` も完了しました。
+- `app-summary --stream --json` を追加しました。
 - Tauri 側は raw PTY ではなく、summary refresh signal を正本として受ける形へ切り替えました。
-- その後、`TASK-278` の次の小さな変更を進めました。
+- その後、`TASK-103` の次の小さな変更を進めました。
 - `board.summary` の集計内訳を Rust と TypeScript の契約に追加しました。
 - `inbox.summary` の種別集計も同じように追加しました。
 - 対象は `by_state`、`by_review`、`by_task_state`、`by_kind` です。
 - これらが欠けた入力 JSON を、Rust 側で拒否する回帰テストを追加しました。
-- この変更はブランチ `codex/task278-summary-breakdowns-20260417` にまとめました。
+- この変更はブランチ `codex/task103-summary-breakdowns-20260417` にまとめました。
 - 下書き PR `#498` まで作成済みです。
-- `v0.22.0` の実装タスク一式は完了済みで、`GitHub Release` も公開済みです。
+- `v1.0.0` の実装タスク一式は完了済みで、`GitHub Release` も公開済みです。
 
 確認結果
 
-- `TASK-306` は `Pester 246/246` と `git-guard` を通したうえでマージ済みです。
-- `TASK-289` は `Pester 248/248` を通しています。
+- `TASK-101` は `pytest 246/246` と `lint-guard` を通したうえでマージ済みです。
+- `TASK-102` は `pytest 248/248` を通しています。
 - あわせて `cargo test` も通しています。
 - `npm run build` も通しています。
-- `git-guard` と `audit-public-surface` も通しています。
-- `TASK-278` の今回の変更でも、`cargo fmt` を実行しました。
+- `lint-guard` と `audit-surface` も通しています。
+- `TASK-103` の今回の変更でも、`cargo fmt` を実行しました。
 - 対象の Rust テストを通しました。
-- `winsmux-app/src-tauri` の `cargo test` 全体も通しました。
-- `winsmux-app` の `npm run build` も通しました。
-- 現在の作業ブランチは `codex/task278-summary-breakdowns-20260417` です。
+- `my-app/src-tauri` の `cargo test` 全体も通しました。
+- `my-app` の `npm run build` も通しました。
+- 現在の作業ブランチは `codex/task103-summary-breakdowns-20260417` です。
 - 下書き PR は `#498` です。
-- `v0.22.0` の release workflow `Release Core Binary` run `24544183143` は成功しています。
+- `v1.0.0` の release workflow `Release Core Binary` run `24544183143` は成功しています。
 
 次にやること
 
-- 次の優先は `TASK-278` です。
+- 次の優先は `TASK-103` です。
 - `inbox.items[*]` の補助項目を詰めるかを見ます。
 - もしくは `explain.run` の未反映項目を、fixture 駆動の小さな変更に分けて詰めます。
-- `TASK-315` は内部運用レーンとして残します。
+- `TASK-104` は内部運用レーンとして残します。
 - ただし、`P0` の差を埋める作業より先には進めません。
