@@ -78,6 +78,8 @@ codex-jp-harness/
 │   ├── install.sh             macOS / Linux / Git Bash 用
 │   ├── uninstall.ps1
 │   └── uninstall.sh
+├── skills/
+│   └── jp-harness-tune/       Claude Code 用の対話チューニング skill（任意）
 ├── tests/
 │   ├── test_rules.py          単体テスト 28 件
 │   └── fixtures/              実 Codex 出力の before/after
@@ -158,6 +160,107 @@ pwsh scripts\install.ps1 -AppendAgentsRule
 ```
 
 どちらのスクリプトも `~/.codex/config.toml` に MCP サーバー登録を追記し、`--append-agents-rule` / `-AppendAgentsRule` 指定時は `~/.codex/AGENTS.md` にも `config/agents_rule.md` の内容を追記します。
+
+## 違反検出時の対処法
+
+`finalize` が `ok:false` を返した時、どう対応するかの指針。Codex 側は自動で書き直しに入るが、利用者側でルールを調整したいケースもある。
+
+### severity 三段階の意味
+
+各違反には severity が付与される。`finalize` は **ERROR が 0 件なら `ok:true`** を返す。
+
+| severity | 意味 | 対応 |
+|---|---|---|
+| `ERROR` | 読み手に誤解を与える、または日本語として明らかに崩れている | **必ず修正**。残っていれば `ok:false` |
+| `WARNING` | 避けた方が自然だが致命的ではない | 強く推奨。`advisories` で通知されるが `ok:true` は返る |
+| `INFO` | 参考情報（好みの問題） | 読み流してよい |
+
+`finalize` の summary には内訳が含まれる（例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`）。
+
+### User-local override — バンドル規則を自プロジェクトに合わせる
+
+`~/.codex/jp_lint.yaml` を置くと、バンドル済みの `banned_terms.yaml` に対して追加・上書き・無効化ができる。リポジトリのコードは触らない。
+
+**探索優先順位**:
+1. `$CODEX_JP_HARNESS_USER_CONFIG`（明示指定）
+2. `$XDG_CONFIG_HOME/codex-jp-harness/jp_lint.yaml`
+3. `~/.codex/jp_lint.yaml`（既定）
+
+ファイルが存在しなければバンドル値がそのまま使われる。
+
+**yaml の書き方**:
+
+```yaml
+# ~/.codex/jp_lint.yaml
+
+# バンドル済みの禁止語を無効化（プロジェクト用語と衝突する場合など）
+disable:
+  - slice          # 例: データ分析で "time slice" を常用するチームでは外す
+
+# 既存エントリの severity だけ差し替え
+overrides:
+  handoff:
+    severity: WARNING   # ERROR → WARNING に緩める
+
+# プロジェクト固有の禁止語を追加
+add:
+  - term: foobar
+    suggest: "独自用語 foobar は日本語訳を使う"
+    severity: ERROR
+    category: project
+
+# 閾値を上書き（任意）
+thresholds:
+  max_identifiers_per_sentence: 4
+```
+
+### `codex-jp-tune` — 対話的に override を編集する CLI
+
+yaml を直接書くのが億劫なら `codex-jp-tune` を使う（`uv sync` 済みの環境で動く）。
+
+```bash
+# 有効な設定を確認
+codex-jp-tune show
+
+# override ファイルの場所を表示
+codex-jp-tune path
+
+# 禁止語を一時的に無効化 / 戻す
+codex-jp-tune disable slice
+codex-jp-tune enable slice
+
+# severity を差し替え
+codex-jp-tune set-severity handoff WARNING
+
+# プロジェクト固有の禁止語を追加 / 削除
+codex-jp-tune add foobar --suggest "foobar は日本語訳を使う" --severity ERROR
+codex-jp-tune remove foobar
+```
+
+`codex-jp-tune` は pyyaml のみに依存する単独 CLI で、バンドル済み `banned_terms.yaml` には触れない。書き出し時にコメントは保持されないため、リッチな構造を残したい場合は yaml を手編集する。
+
+### Claude Code skill (任意)
+
+Claude Code を併用している場合、リポジトリ同梱の `skills/jp-harness-tune/skill.md` を個人スキルディレクトリに配置すると、対話的なチューニング支援が使える。
+
+```bash
+# macOS / Linux / Git Bash
+mkdir -p ~/.claude/skills/jp-harness-tune
+cp skills/jp-harness-tune/skill.md ~/.claude/skills/jp-harness-tune/
+
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force $HOME\.claude\skills\jp-harness-tune | Out-Null
+Copy-Item skills\jp-harness-tune\skill.md $HOME\.claude\skills\jp-harness-tune\
+```
+
+配置後、Claude Code から `/jp-harness-tune` または「jp_lint 調整」などの発話で呼び出せる。スキルは判断支援（本当に無効化すべきか）を挟んでから `codex-jp-tune` を実行する。
+
+### 典型的な運用フロー
+
+1. Codex が `finalize` で `ok:false` を返したら、まずはそのまま書き直しを待つ
+2. 同じ語が高頻度で検出される場合、まず **その語がプロジェクト文脈で本当に避けるべきか** を判断する
+3. 避けるべきなら規則のままにし、Codex 側に学習させる。プロジェクト用語として許容するなら `codex-jp-tune disable <term>` で外す
+4. 逆に、プロジェクト固有の避けたい語が検出されないなら `codex-jp-tune add <term> --suggest "..."` で追加する
 
 ## 運用監視
 
