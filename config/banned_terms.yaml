@@ -1,25 +1,145 @@
 # codex-jp-harness: banned terms & thresholds
 # Single source of truth for Japanese report quality gate rules.
 
-version: 1
+version: 2
 
 # Banned English terms that should be paraphrased in Japanese.
 # Case-insensitive match with word boundaries.
+#
+# Schema (v2):
+#   term:          the English string to forbid (case-insensitive)
+#   suggest:       human-readable replacement guidance
+#   katakana_form: established katakana spelling (empty if none / context-dependent)
+#   severity:      ERROR | WARNING | INFO
+#   category:      process | state | concepts | review | jargon
+#
+# Backward compatibility: severity / category / katakana_form may be omitted.
+# Defaults: severity=ERROR, category=other, katakana_form="".
 banned:
-  - { term: slice,          suggest: "限定的な変更、今回の範囲" }
-  - { term: parity,         suggest: "差、差分、揃え" }
-  - { term: done,           suggest: "完了" }
-  - { term: active,         suggest: "進行中" }
-  - { term: ready,          suggest: "レビュー可能な状態、下書きを外す" }
-  - { term: squash,         suggest: "まとめてマージ" }
-  - { term: dispatch,       suggest: "振り分け、受け渡し" }
-  - { term: handoff,        suggest: "引き継ぎメモ" }
-  - { term: regression,     suggest: "回帰テスト、再発防止テスト" }
-  - { term: fail-close,     suggest: "不正な入力を拒否する、安全側で止める" }
-  - { term: fast-forward,   suggest: "早送り同期" }
-  - { term: contract drift, suggest: "契約のずれ、仕様のずれ" }
-  # Japanese jargon that breaks on reading aloud
-  - { term: 冪等,           suggest: "何度実行しても同じ結果、繰り返しても安全" }
+  # --- process / git terminology ---
+  - term: slice
+    suggest: "限定的な変更、今回の範囲"
+    severity: ERROR
+    category: process
+  - term: parity
+    suggest: "差、差分、揃え"
+    severity: ERROR
+    category: process
+  - term: squash
+    suggest: "まとめてマージ"
+    severity: ERROR
+    category: process
+  - term: dispatch
+    suggest: "振り分け、受け渡し"
+    severity: ERROR
+    category: process
+  - term: regression
+    suggest: "回帰テスト、再発防止テスト"
+    severity: ERROR
+    category: process
+  - term: fail-close
+    suggest: "不正な入力を拒否する、安全側で止める"
+    severity: ERROR
+    category: process
+  - term: fast-forward
+    suggest: "早送り同期"
+    severity: ERROR
+    category: process
+  - term: contract drift
+    suggest: "契約のずれ、仕様のずれ"
+    severity: ERROR
+    category: process
+  - term: merge
+    suggest: "マージ"
+    katakana_form: マージ
+    severity: INFO
+    category: process
+  - term: rebase
+    suggest: "リベース"
+    katakana_form: リベース
+    severity: WARNING
+    category: process
+  - term: cherry-pick
+    suggest: "選別マージ、チェリーピック"
+    katakana_form: チェリーピック
+    severity: WARNING
+    category: process
+
+  # --- state words ---
+  - term: done
+    suggest: "完了"
+    severity: ERROR
+    category: state
+  - term: active
+    suggest: "進行中"
+    severity: ERROR
+    category: state
+  - term: ready
+    suggest: "レビュー可能な状態、下書きを外す"
+    severity: ERROR
+    category: state
+  - term: pending
+    suggest: "保留中"
+    katakana_form: ペンディング
+    severity: WARNING
+    category: state
+  - term: idle
+    suggest: "待機中、アイドル"
+    katakana_form: アイドル
+    severity: INFO
+    category: state
+
+  # --- abstract concepts ---
+  - term: handoff
+    suggest: "引き継ぎメモ"
+    severity: ERROR
+    category: concepts
+  - term: fingerprint
+    suggest: "フィンガープリント"
+    katakana_form: フィンガープリント
+    severity: ERROR
+    category: concepts
+  - term: fallback
+    suggest: "フォールバック"
+    katakana_form: フォールバック
+    severity: ERROR
+    category: concepts
+  - term: fixture
+    suggest: "フィクスチャ"
+    katakana_form: フィクスチャ
+    severity: ERROR
+    category: concepts
+  - term: payload
+    suggest: "ペイロード"
+    katakana_form: ペイロード
+    severity: ERROR
+    category: concepts
+  - term: helper
+    suggest: "ヘルパー、補助関数"
+    katakana_form: ヘルパー
+    severity: WARNING
+    category: concepts
+  - term: wrapper
+    suggest: "ラッパー"
+    katakana_form: ラッパー
+    severity: WARNING
+    category: concepts
+
+  # --- review / verdict ---
+  - term: verdict
+    suggest: "判定結果"
+    severity: WARNING
+    category: review
+  - term: blocker
+    suggest: "阻害要因"
+    severity: WARNING
+    category: review
+
+  # --- Japanese jargon that breaks on reading aloud ---
+  - term: 冪等
+    suggest: "何度実行しても同じ結果、繰り返しても安全"
+    severity: ERROR
+    category: jargon
 
 # Code identifier pattern: tokens containing at least one of . _ / -
 # (natural English words don't match; only code-like identifiers do)

@@ -79,6 +79,56 @@ class TestBannedTerms:
         violations = detect_banned_terms("slice を進めた", cfg)
         assert violations[0].suggest != ""
 
+    def test_severity_assigned(self, cfg):
+        # All violations should carry a severity (default ERROR)
+        violations = detect_banned_terms("slice を進めた", cfg)
+        assert violations[0].severity in ("ERROR", "WARNING", "INFO")
+
+    def test_severity_info_for_merge(self, cfg):
+        # merge is INFO (katakana well-established)
+        violations = detect_banned_terms("main に merge した", cfg)
+        merge_v = [v for v in violations if v.term == "merge"]
+        assert merge_v and merge_v[0].severity == "INFO"
+
+    def test_severity_warning_for_helper(self, cfg):
+        violations = detect_banned_terms("helper 関数を切り出した", cfg)
+        helper_v = [v for v in violations if v.term == "helper"]
+        assert helper_v and helper_v[0].severity == "WARNING"
+
+    def test_severity_error_for_fallback(self, cfg):
+        violations = detect_banned_terms("fallback で対処した", cfg)
+        fb_v = [v for v in violations if v.term == "fallback"]
+        assert fb_v and fb_v[0].severity == "ERROR"
+
+    def test_new_concepts_detected(self, cfg):
+        # All new concepts category terms should be caught
+        for term in ("fingerprint", "fallback", "fixture", "payload"):
+            violations = detect_banned_terms(f"{term} を確認した", cfg)
+            assert any(v.term == term for v in violations), f"{term} not detected"
+
+    def test_new_review_terms_detected(self, cfg):
+        for term in ("verdict", "blocker"):
+            violations = detect_banned_terms(f"{term} を整理した", cfg)
+            assert any(v.term == term for v in violations), f"{term} not detected"
+
+    def test_new_state_terms_detected(self, cfg):
+        for term in ("pending", "idle"):
+            violations = detect_banned_terms(f"状態は {term} です", cfg)
+            assert any(v.term == term for v in violations), f"{term} not detected"
+
+    def test_cherry_pick_with_hyphen_detected(self, cfg):
+        violations = detect_banned_terms("cherry-pick で取り込んだ", cfg)
+        assert any(v.term == "cherry-pick" for v in violations)
+
+    def test_katakana_form_present_for_kana_words(self, cfg):
+        # New-schema entries that have established katakana should expose it
+        # via the underlying entry (not yet propagated to Violation, but the
+        # config must carry it for tune/reporting).
+        terms_with_kana = {"fingerprint", "fallback", "fixture", "payload", "merge"}
+        config_terms = {e.get("term"): e for e in cfg.banned}
+        for t in terms_with_kana:
+            assert config_terms[t].get("katakana_form"), f"{t} missing katakana_form"
+
 
 class TestBareIdentifiers:
     def test_file_path_detected(self, cfg):
@@ -203,11 +253,13 @@ class TestVialationSerialization:
     def test_to_dict_excludes_empty(self):
         v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
         d = v.to_dict()
+        # severity defaults to "ERROR" (not empty), so it's always present.
         assert d == {
             "rule": "banned_term",
             "line": 1,
             "term": "slice",
             "suggest": "限定的な変更",
+            "severity": "ERROR",
         }
 
     def test_to_dict_excludes_zero_count(self):
@@ -215,3 +267,14 @@ class TestVialationSerialization:
         d = v.to_dict()
         assert "count" not in d
         assert "limit" not in d
+
+    def test_to_dict_includes_severity(self):
+        v = Violation(rule="banned_term", line=1, term="x", severity="WARNING")
+        d = v.to_dict()
+        assert d["severity"] == "WARNING"
+
+    def test_to_dict_excludes_empty_category(self):
+        # category defaults to "" so it should be filtered out
+        v = Violation(rule="banned_term", line=1, term="x")
+        d = v.to_dict()
+        assert "category" not in d
