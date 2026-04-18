@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`codex-jp-tune` CLI (rc2)**: ユーザー設定を対話的に編集する
   console script を追加。サブコマンドは `path` / `show` / `disable` /
   `enable` / `set-severity` / `add` / `remove`。pyyaml のみ依存。
+- **README「違反検出時の対処法」section**: severity 三段階の意味、
+  user-local override の yaml 例、`codex-jp-tune` の使い方、典型的な
+  運用フローを統合。インストール直後の読者が最初につまずく
+  「ok:false が返ったらどうするか」の導線を整備。
+- **`jp-harness-tune` Claude Code skill**: `skills/jp-harness-tune/skill.md`
+  を同梱。ルールを安易に緩めないよう、無効化・severity 調整・追加の前に
+  必ず判断支援ステップを挟み、`codex-jp-tune` を実行する。
+  `~/.claude/skills/` に配置すると `/jp-harness-tune` で呼べる。
 
 ## [0.1.3] - 2026-04-18
 
