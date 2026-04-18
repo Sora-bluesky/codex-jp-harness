@@ -3,17 +3,20 @@
 #
 # Mirrors scripts/install.ps1 for POSIX-like shells.
 # Usage:
-#   bash scripts/install.sh                      # register MCP only
+#   bash scripts/install.sh                      # register MCP and place skill
 #   bash scripts/install.sh --append-agents-rule # also append quality-gate rule to AGENTS.md
+#   bash scripts/install.sh --skip-skill         # do not place the skill file
 
 set -euo pipefail
 
 APPEND_AGENTS_RULE=false
 FORCE=false
+SKIP_SKILL=false
 for arg in "$@"; do
   case "$arg" in
     --append-agents-rule) APPEND_AGENTS_RULE=true ;;
     --force)              FORCE=true ;;
+    --skip-skill)         SKIP_SKILL=true ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -37,6 +40,9 @@ CODEX_DIR="$HOME/.codex"
 CONFIG_PATH="$CODEX_DIR/config.toml"
 AGENTS_PATH="$CODEX_DIR/AGENTS.md"
 RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
+SKILL_SRC="$REPO_ROOT/skills/jp-harness-tune/SKILL.md"
+SKILL_DEST_DIR="$CODEX_DIR/skills/jp-harness-tune"
+SKILL_DEST_PATH="$SKILL_DEST_DIR/SKILL.md"
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
@@ -49,6 +55,10 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
 fi
 if [[ ! -f "$VENV_PYTHON" ]]; then
   echo "[codex-jp-harness] .venv Python not found. Run 'uv sync' in $REPO_ROOT first." >&2
+  exit 1
+fi
+if [[ "$SKIP_SKILL" != "true" && ! -f "$SKILL_SRC" ]]; then
+  echo "[codex-jp-harness] SKILL.md not found at $SKILL_SRC. Re-clone the repo or pass --skip-skill to bypass." >&2
   exit 1
 fi
 
@@ -105,6 +115,42 @@ else
   echo "[codex-jp-harness] AGENTS.md not found; skipping rule handling."
 fi
 
+# Skill placement
+# Hash helper: pick the first available SHA-256 command and print "HASH filename".
+# Falls back through sha256sum (GNU), shasum -a 256 (macOS / BSD), certutil (Git Bash on Windows).
+sha256_of() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  elif command -v certutil >/dev/null 2>&1; then
+    certutil -hashfile "$path" SHA256 2>/dev/null | sed -n '2p' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'
+  else
+    echo ""
+  fi
+}
+
+if [[ "$SKIP_SKILL" == "true" ]]; then
+  echo "[codex-jp-harness] Skipping skill placement (--skip-skill)."
+else
+  mkdir -p "$SKILL_DEST_DIR"
+  if [[ ! -f "$SKILL_DEST_PATH" ]]; then
+    cp -f "$SKILL_SRC" "$SKILL_DEST_PATH"
+    echo "[codex-jp-harness] Installed skill: $SKILL_DEST_PATH"
+  else
+    src_hash="$(sha256_of "$SKILL_SRC")"
+    dest_hash="$(sha256_of "$SKILL_DEST_PATH")"
+    if [[ -z "$src_hash" || -z "$dest_hash" ]]; then
+      echo "[codex-jp-harness] No SHA-256 tool found; skipping skill overwrite to be safe at $SKILL_DEST_PATH" >&2
+    elif [[ "$src_hash" == "$dest_hash" ]]; then
+      echo "[codex-jp-harness] Skill up to date: $SKILL_DEST_PATH"
+    else
+      echo "[codex-jp-harness] Existing SKILL.md at $SKILL_DEST_PATH differs from the bundled version. Skip overwrite to preserve your edits. Remove the file manually and re-run to reinstall." >&2
+    fi
+  fi
+fi
+
 echo ""
 echo "[codex-jp-harness] Installation complete."
-echo "[codex-jp-harness] Restart Codex CLI to activate the MCP server."
+echo "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill."

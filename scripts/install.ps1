@@ -6,7 +6,8 @@
 
 param(
     [switch]$Force,
-    [switch]$AppendAgentsRule
+    [switch]$AppendAgentsRule,
+    [switch]$SkipSkill
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,9 +16,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot   = Split-Path -Parent $PSScriptRoot
 $serverPath = Join-Path $repoRoot "src\codex_jp_harness\server.py"
 $venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
+$skillSrc   = Join-Path $repoRoot "skills\jp-harness-tune\SKILL.md"
 $codexDir   = Join-Path $env:USERPROFILE ".codex"
 $configPath = Join-Path $codexDir "config.toml"
 $agentsPath = Join-Path $codexDir "AGENTS.md"
+$skillDestDir  = Join-Path $codexDir "skills\jp-harness-tune"
+$skillDestPath = Join-Path $skillDestDir "SKILL.md"
 
 # Preflight
 if (-not (Test-Path $serverPath)) {
@@ -39,6 +43,10 @@ Run 'uv sync' in the repo root first:
     cd $repoRoot
     uv sync
 "@
+    exit 1
+}
+if (-not $SkipSkill -and -not (Test-Path $skillSrc)) {
+    Write-Error "SKILL.md not found at $skillSrc. Re-clone the repo or pass -SkipSkill to bypass."
     exit 1
 }
 
@@ -97,6 +105,27 @@ if (Test-Path $agentsPath) {
     Write-Host "[codex-jp-harness] AGENTS.md not found; skipping rule handling." -ForegroundColor Yellow
 }
 
+# Skill placement
+if ($SkipSkill) {
+    Write-Host "[codex-jp-harness] Skipping skill placement (-SkipSkill)." -ForegroundColor Yellow
+} else {
+    if (-not (Test-Path $skillDestDir)) {
+        New-Item -ItemType Directory -Path $skillDestDir -Force | Out-Null
+    }
+    if (-not (Test-Path $skillDestPath)) {
+        Copy-Item -Path $skillSrc -Destination $skillDestPath -Force
+        Write-Host "[codex-jp-harness] Installed skill: $skillDestPath" -ForegroundColor Green
+    } else {
+        $srcHash  = (Get-FileHash -Path $skillSrc       -Algorithm SHA256).Hash
+        $destHash = (Get-FileHash -Path $skillDestPath  -Algorithm SHA256).Hash
+        if ($srcHash -eq $destHash) {
+            Write-Host "[codex-jp-harness] Skill up to date: $skillDestPath" -ForegroundColor Green
+        } else {
+            Write-Warning "Existing SKILL.md at $skillDestPath differs from the bundled version. Skip overwrite to preserve your edits. Remove the file manually and re-run to reinstall."
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "[codex-jp-harness] Installation complete." -ForegroundColor Green
-Write-Host "[codex-jp-harness] Restart Codex CLI to activate the MCP server." -ForegroundColor Green
+Write-Host "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
