@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`jp-harness-tune` skill を Codex CLI 形式に書き換え**。v0.2.0 では誤って
+  Claude Code skill 形式 (`skill.md` 小文字・Claude Code frontmatter) で同梱して
+  いたが、本リポジトリが Codex CLI 向けである以上、第一ターゲットは Codex に
+  合わせるべき。Codex 公式仕様 (`codex-rs/core-skills/src/loader.rs`, `codex-rs/
+  skills/src/assets/samples/skill-creator/SKILL.md`) を一次情報として参照し、
+  以下に修正:
+  - ファイル名: `skill.md` → `SKILL.md`（Codex は大文字固定）
+  - frontmatter: `name` / `description` のみ（Codex 認識フィールド）。
+    `argument-hint` 等は Codex 非対応のため削除
+  - 配置先: `~/.codex/skills/jp-harness-tune/SKILL.md`
+    （`$CODEX_HOME/skills/...`）
+  - 呼び出し: `/jp-harness-tune` → `$jp-harness-tune`（Codex は `$` sigil）
+  - README の install 手順・ディレクトリ構造・インストール後の
+    `~/.codex/` ツリーも合わせて更新
+
+### Changed
+- **「撤去」→「アンインストール」に統一**。README / AGENTS.md /
+  `config/agents_rule.md` / `docs/DEPRECATION.md` / `docs/ARCHITECTURE.md`
+  の全 9 箇所。ソフトウェア文脈では「撤去」より「アンインストール」の方が
+  自然で、利用者に伝わりやすい。`config/agents_rule.md` は
+  `~/.codex/AGENTS.md` に追記されるため、利用者の環境にも反映される。
+- **内部呼称「7.p」/「7.q」を「品質ゲート規約」に統一**。v0.1.x で使用していた
+  「7.p ルール」は筆者個人の `~/.codex/AGENTS.md` 章番号（7.a〜7.o の次）に
+  由来する歴史的通称で、v0.1.2 で `agents_rule.md` がスタンドアロン形式に
+  刷新された時点で実体との対応は失われていた。現行ドキュメントから「7.p」/
+  「7.q」呼称を削除（13 箇所、CHANGELOG の歴史的記述は不変性のため保持）。
+  `config/agents_rule.md` 冒頭コメントに呼称 SSoT 宣言を追加。
+- **dead reference「7.q」を完全撤去**。`agents_rule.md` 本体に「7.q」相当の
+  規約は存在せず、4 箇所のドキュメント参照が空を指していた（AGENTS.md /
+  docs/OPERATIONS.md / docs/DEPRECATION.md / scripts/uninstall.ps1）。
+- **README に v0.2.0 以前利用者への移行案内 section を追加**。旧呼称が
+  消えたことによる既存利用者の混乱を防ぐため、再インストール時の挙動を明記。
+
 ## [0.2.0] - 2026-04-18
 
 v0.1.x からの大きな拡張。禁止語を倍増し、severity 階層で「止めるべき違反」と「参考情報」を分離し、利用者側で規則を調整できる仕組み (user-local override + `codex-jp-tune` CLI + Claude Code skill) を追加した。

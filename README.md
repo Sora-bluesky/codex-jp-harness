@@ -72,14 +72,14 @@ codex-jp-harness/
 │       └── rules.py           Lint ロジック（純関数）
 ├── config/
 │   ├── banned_terms.yaml      禁止語・閾値の単一情報源（12 語 + 各種閾値）
-│   └── agents_rule.md         `~/.codex/AGENTS.md` に追記される 7.p ルール本文
+│   └── agents_rule.md         `~/.codex/AGENTS.md` に追記される品質ゲート規約本文
 ├── scripts/
 │   ├── install.ps1            Windows PowerShell 用インストーラー
 │   ├── install.sh             macOS / Linux / Git Bash 用
 │   ├── uninstall.ps1
 │   └── uninstall.sh
 ├── skills/
-│   └── jp-harness-tune/       Claude Code 用の対話チューニング skill（任意）
+│   └── jp-harness-tune/       Codex CLI 用の対話チューニング skill（任意、SKILL.md）
 ├── tests/
 │   ├── test_rules.py          単体テスト 28 件
 │   └── fixtures/              実 Codex 出力の before/after
@@ -91,7 +91,7 @@ codex-jp-harness/
     ├── INSTALL.md              詳細インストール手順（パターン A / B）
     ├── ARCHITECTURE.md         設計判断・Tier 比較
     ├── OPERATIONS.md           運用監視・指標・公式対応の観測方法
-    └── DEPRECATION.md          公式対応時の撤去手順
+    └── DEPRECATION.md          公式対応時のアンインストール手順
 ```
 
 ### インストールで変更されるユーザー環境
@@ -103,8 +103,13 @@ codex-jp-harness/
 ├── config.toml                 [mcp_servers.jp_lint] エントリが追記される
 │                               command = venv Python の絶対パス
 │                               args = ["-m", "codex_jp_harness.server"]
-└── AGENTS.md                   --append-agents-rule / -AppendAgentsRule 指定時、
-                                config/agents_rule.md の 7.p ルール本文が末尾に追記される
+├── AGENTS.md                   --append-agents-rule / -AppendAgentsRule 指定時、
+│                               config/agents_rule.md の品質ゲート規約が末尾に追記される
+├── jp_lint.yaml                (任意・手動配置) user-local override。
+│                               `codex-jp-tune` で対話編集、または手で yaml を書く
+└── skills/
+    └── jp-harness-tune/        (任意・手動コピー) 対話チューニング skill。
+        └── SKILL.md            Codex CLI から `$jp-harness-tune` で呼び出す
 ```
 
 どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。アンインストーラーで `config.toml` から関連エントリを削除できる（`AGENTS.md` は手動削除）。
@@ -127,7 +132,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
 3. OS に応じたインストールスクリプトを実行する
    - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
-   (Codex config.toml への MCP 登録と、AGENTS.md への 7.p ルール追記を一括で行う)
+   (Codex config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う)
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
 5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
 
@@ -239,21 +244,35 @@ codex-jp-tune remove foobar
 
 `codex-jp-tune` は pyyaml のみに依存する単独 CLI で、バンドル済み `banned_terms.yaml` には触れない。書き出し時にコメントは保持されないため、リッチな構造を残したい場合は yaml を手編集する。
 
-### Claude Code skill (任意)
+### Codex Skill (任意)
 
-Claude Code を併用している場合、リポジトリ同梱の `skills/jp-harness-tune/skill.md` を個人スキルディレクトリに配置すると、対話的なチューニング支援が使える。
+Codex CLI には `~/.codex/skills/<name>/SKILL.md` を配置するとユーザースキルとして登録される仕組みがあります（スキルファイル名は `SKILL.md` 固定）。リポジトリ同梱の `skills/jp-harness-tune/SKILL.md` をその場所にコピーすると、対話的なチューニング支援が使えます。
 
 ```bash
 # macOS / Linux / Git Bash
-mkdir -p ~/.claude/skills/jp-harness-tune
-cp skills/jp-harness-tune/skill.md ~/.claude/skills/jp-harness-tune/
+mkdir -p ~/.codex/skills/jp-harness-tune
+cp skills/jp-harness-tune/SKILL.md ~/.codex/skills/jp-harness-tune/
 
 # Windows (PowerShell)
-New-Item -ItemType Directory -Force $HOME\.claude\skills\jp-harness-tune | Out-Null
-Copy-Item skills\jp-harness-tune\skill.md $HOME\.claude\skills\jp-harness-tune\
+New-Item -ItemType Directory -Force $HOME\.codex\skills\jp-harness-tune | Out-Null
+Copy-Item skills\jp-harness-tune\SKILL.md $HOME\.codex\skills\jp-harness-tune\
 ```
 
-配置後、Claude Code から `/jp-harness-tune` または「jp_lint 調整」などの発話で呼び出せる。スキルは判断支援（本当に無効化すべきか）を挟んでから `codex-jp-tune` を実行する。
+配置後の構造:
+
+```
+~/.codex/
+├── config.toml
+├── AGENTS.md
+├── jp_lint.yaml                      任意: user-local override
+└── skills/
+    └── jp-harness-tune/
+        └── SKILL.md                  このスキル本体
+```
+
+呼び出しは Codex CLI の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex CLI のスキルは `/` ではなく `$` sigil で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
+
+`$CODEX_HOME` 環境変数を設定している場合は `$CODEX_HOME/skills/jp-harness-tune/` が配置先になります。
 
 ### 典型的な運用フロー
 
@@ -276,14 +295,22 @@ Copy-Item skills\jp-harness-tune\skill.md $HOME\.claude\skills\jp-harness-tune\
 
 Tier 1〜4 の比較や MCP finalize ゲート採用理由は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照。
 
-## 撤去（公式対応時）
+## v0.2.0 以前の利用者へ（内部呼称の移行）
+
+v0.2.0 以前では `config/agents_rule.md` の本文を内部で「**7.p ルール**」、severity 関連の将来拡張を「**7.q**」と呼んでいました。これらは筆者個人の `~/.codex/AGENTS.md` の番号体系（7.a〜7.o）に由来する歴史的通称で、v0.2.1 以降は「**品質ゲート規約**」に統一しています。
+
+- **実体への影響はなし**: `~/.codex/AGENTS.md` に「7.p」「7.q」として追記済みの内容はそのまま動作します
+- **呼び名だけの変更**: 現行ドキュメントからは「7.p」「7.q」呼称を削除しました（CHANGELOG の過去エントリは歴史的記録として保持）
+- **再インストール時の挙動**: `install.ps1 -AppendAgentsRule` / `install.sh --append-agents-rule` を再実行すると、新しい見出し (`## 日本語技術文の品質ゲート`) で再追記されます。旧ブロックは自動削除されないため、手動で整理してください
+
+## アンインストール（公式対応時）
 
 OpenAI が Codex CLI に以下のいずれかを公式実装した時点で、本ハーネスは役目を終えます:
 - Codex CLI 本体が Claude Code 相当の日本語自然化を標準装備
 - Pre-response hook（出力前書き換え）の公式機構
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）の実装
 
-撤去手順は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) 参照。
+アンインストール手順は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) 参照。
 
 ## ライセンス
 

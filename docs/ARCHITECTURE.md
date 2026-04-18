@@ -66,7 +66,7 @@ PowerShell スクリプト（Stop, SessionStart）。Codex の hook 機構から
 2. **疎結合**: `rules.py` は MCP プロトコルを知らない純関数
 3. **Graceful degradation**: MCP サーバー停止時は自己チェックで応答継続
 4. **観測可能性**: `stats.json` に呼び出し統計を自動記録、月次レビュー可能
-5. **撤去容易性**: `docs/DEPRECATION.md` で1コマンド相当の撤去手順を提供
+5. **アンインストール容易性**: `docs/DEPRECATION.md` で1コマンド相当のアンインストール手順を提供
 
 ## トレードオフ
 

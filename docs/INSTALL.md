@@ -25,7 +25,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
 3. OS に応じたインストールスクリプトを実行する
    - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
-   （config.toml への MCP 登録と、AGENTS.md への 7.p ルール追記を一括で行う）
+   （config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う）
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
 5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
 
@@ -67,9 +67,9 @@ pwsh scripts\install.ps1 -AppendAgentsRule
 
 どちらのスクリプトも以下を自動実行:
 - `~/.codex/config.toml` に `[mcp_servers.jp_lint]` を追記（既存エントリは自分のリポパスで書き直し）
-- `--append-agents-rule` / `-AppendAgentsRule` フラグ指定時: `~/.codex/AGENTS.md` に `config/agents_rule.md` の 7.p ルール本文を追記
+- `--append-agents-rule` / `-AppendAgentsRule` フラグ指定時: `~/.codex/AGENTS.md` に `config/agents_rule.md` の品質ゲート規約本文を追記
 
-フラグなしで実行した場合、AGENTS.md は自動更新されず、警告メッセージで手動追記を促します。既存の AGENTS.md に独自の 7.p がある場合はこちらを推奨。
+フラグなしで実行した場合、AGENTS.md は自動更新されず、警告メッセージで手動追記を促します。既存の AGENTS.md に独自の品質ゲート規約がある場合はこちらを推奨。
 
 install.sh は Git Bash / WSL 検出時に `cygpath` で Windows 形式のパスに自動変換します。
 
@@ -103,7 +103,7 @@ python C:\Users\<username>\Documents\Projects\apps\codex-jp-harness\src\codex_jp
 
 ### Codex が finalize を呼ばない
 
-`~/.codex/AGENTS.md` に 7.p が追記されているか確認。手動で追記する場合は `docs/ARCHITECTURE.md` のサンプルを参照。
+`~/.codex/AGENTS.md` に品質ゲート規約が追記されているか確認。手動で追記する場合は `docs/ARCHITECTURE.md` のサンプルを参照。
 
 ### hook が動かない
 

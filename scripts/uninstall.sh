@@ -33,5 +33,5 @@ fi
 
 echo ""
 echo "[codex-jp-harness] Manual step required:"
-echo "[codex-jp-harness]   1. Edit ~/.codex/AGENTS.md and remove the 7.p rule block."
+echo "[codex-jp-harness]   1. Edit ~/.codex/AGENTS.md and remove the quality-gate rule block."
 echo "[codex-jp-harness]   2. Restart Codex CLI."

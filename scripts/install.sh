@@ -4,7 +4,7 @@
 # Mirrors scripts/install.ps1 for POSIX-like shells.
 # Usage:
 #   bash scripts/install.sh                      # register MCP only
-#   bash scripts/install.sh --append-agents-rule # also append 7.p to AGENTS.md
+#   bash scripts/install.sh --append-agents-rule # also append quality-gate rule to AGENTS.md
 
 set -euo pipefail
 

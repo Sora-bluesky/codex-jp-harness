@@ -21,7 +21,7 @@
 | `src/codex_jp_harness/rules.py` | Lint ロジック（純関数） |
 | `src/codex_jp_harness/server.py` | FastMCP サーバー。`finalize` ツールを公開 |
 | `config/banned_terms.yaml` | 禁止語・閾値の単一情報源 |
-| `config/agents_rule.md` | ユーザーの `~/.codex/AGENTS.md` に追記される 7.p ルール本文 |
+| `config/agents_rule.md` | ユーザーの `~/.codex/AGENTS.md` に追記される品質ゲート規約本文 |
 | `scripts/install.{ps1,sh}` | OS 別インストーラー |
 | `tests/test_rules.py` | 単体テスト 28 件 |
 | `tests/fixtures/codex_*.txt` | 実 Codex 出力の before/after fixture |
@@ -57,9 +57,9 @@
 - 1 文あたり識別子は 2 個まで、文字数は 80 文字（識別子含む文は 50 文字）以内
 - VOICEVOX で音読される場面を想像して書く
 
-グローバル `~/.codex/AGENTS.md` の 7.a〜7.q を優先する。本ファイルは**リポ固有の技術文脈**を補足する位置づけ。
+グローバル `~/.codex/AGENTS.md` に追記された品質ゲート規約を優先する。本ファイルは**リポ固有の技術文脈**を補足する位置づけ。
 
-## 撤去
+## アンインストール
 
 OpenAI が以下のいずれかを公式実装した時点で、このリポは archive する:
 
@@ -67,7 +67,7 @@ OpenAI が以下のいずれかを公式実装した時点で、このリポは 
 - Pre-response hook の公式機構
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）
 
-撤去手順と観測方法は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) と [`docs/OPERATIONS.md`](docs/OPERATIONS.md)。
+アンインストール手順と観測方法は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) と [`docs/OPERATIONS.md`](docs/OPERATIONS.md)。
 
 ## 作業時のチェックリスト
 
