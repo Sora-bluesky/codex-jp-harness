@@ -1,0 +1,34 @@
+name: Sanitize
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  check-no-personal-strings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject personal / project-specific strings in tracked files
+        run: |
+          set -e
+          # Pattern is base64-encoded so this workflow file does not itself
+          # match the check (which would create a self-referential failure).
+          # Allowed file: .mailmap (intentional alias for display purposes).
+          PATTERN=$(echo 'd2luc211eHxrb21laTExMTh8TWFpblZhdWx0fFgtUmFkYXJ8QUktTmV3cw==' | base64 -d)
+          MATCHES=$(git ls-files \
+            | grep -v -E '^\.mailmap$|^\.github/workflows/sanitize\.yml$' \
+            | xargs -I{} grep -lE "$PATTERN" "{}" 2>/dev/null || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::Personal or project-specific strings detected:"
+            echo "$MATCHES"
+            for f in $MATCHES; do
+              echo "--- $f ---"
+              grep -nE "$PATTERN" "$f" || true
+            done
+            exit 1
+          fi
+          echo "Sanitize check passed."

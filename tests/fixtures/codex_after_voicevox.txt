@@ -1,20 +1,20 @@
 やったこと
 
-`TASK-306` を完了し、`prompt_transport=stdin` を `pane dispatch` 側で扱えるようにしました。`exec_mode` は安全側で `file-backed` のまま固定しました。
-`TASK-289` も完了し、`desktop-summary --stream --json` を追加しました。Tauri 側は raw PTY ではなく、summary refresh signal を受けて画面を更新する形へ切り替えました。
+`TASK-101` を完了し、`prompt_transport=stdin` を `pane dispatch` 側で扱えるようにしました。`exec_mode` は安全側で `file-backed` のまま固定しました。
+`TASK-102` も完了し、`app-summary --stream --json` を追加しました。Tauri 側は raw PTY ではなく、summary refresh signal を受けて画面を更新する形へ切り替えました。
 これらを `PR #496` 、`#497` としてマージし、外部計画も更新しました。
-`v0.22.0` に紐づく実装タスクがすべて完了していることを確認し、タグ `v0.22.0` を作成して `GitHub Release` を公開しました。
+`v1.0.0` に紐づく実装タスクがすべて完了していることを確認し、タグ `v1.0.0` を作成して `GitHub Release` を公開しました。
 なお、`slice` と `done` という語は今回の報告ルールでは通常避けています。実際の報告では「今回の範囲」「完了」と言い換える運用です。
 
 確認結果
 
-`TASK-306` は `Pester 246/246` 、`git-guard` 通過後にマージ済みです。
-`TASK-289` は `Pester 248/248` 、`cargo test` 、`npm run build` 、`git-guard` 、`audit-public-surface` を通過してマージ済みです。
-release workflow `Release Core Binary` の run `24544183143` は成功し、`winsmux-x64.exe` 、`winsmux-arm64.exe` 、`SHA256SUMS` を含む `v0.22.0` の Release まで完了しました。
+`TASK-101` は `pytest 246/246` 、`lint-guard` 通過後にマージ済みです。
+`TASK-102` は `pytest 248/248` 、`cargo test` 、`npm run build` 、`lint-guard` 、`audit-surface` を通過してマージ済みです。
+release workflow `Release Core Binary` の run `24544183143` は成功し、`my-app-x64.exe` 、`my-app-arm64.exe` 、`SHA256SUMS` を含む `v1.0.0` の Release まで完了しました。
 現在のローカルは `main` でクリーンです。
 
 次にやること
 
-次の優先は `TASK-278` です。
+次の優先は `TASK-103` です。
 `board` 、`inbox` 、`digest` 、`explain` の golden corpus と `Rust parity` の残りを確認し、fixture 駆動の小さな変更に分けて進めます。
-`TASK-315` は内部運用レーンとして残していますが、`P0` の parity 作業より先には進めません。
+`TASK-104` は内部運用レーンとして残していますが、`P0` の parity 作業より先には進めません。

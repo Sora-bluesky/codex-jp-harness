@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-18
+
+配布安全性 patch。配布物に残っていた特定プロジェクト名・個人 Vault パスを匿名化し、markdown link 内 URL の誤検出も併せて修正。
+
+### Security
+- Sanitized test fixtures and documentation: removed project-specific
+  identifiers (a previous downstream project name and several internal
+  task IDs of the form TASK-NNN) and personal Obsidian Vault sub-paths.
+  Fixtures now use generic placeholder names (`sample-core.ps1`,
+  `my-app/src-tauri`, `TASK-101`〜`TASK-106`) that retain the same
+  violation counts but carry no real-project context.
+- Added `.mailmap` so `git log` displays the historical commit author as
+  the project alias (raw commits on the remote remain unchanged).
+- New CI workflow (`.github/workflows/sanitize.yml`) rejects any tracked
+  file that reintroduces personal or project-specific strings.
+
+### Fixed
+- `bare_identifier` no longer flags the URL inside markdown links of the
+  form `[text](url)`. The URL portion is now masked before identifier
+  detection. The label portion is still scanned, so identifiers written
+  as link text remain caught.
+
+### Changed
+- `config/agents_rule.md`: trigger description now refers to generic vault
+  folders (`Notes/`, `Docs/`, `Articles/`) rather than personal-vault names.
+
 ## [0.1.2] - 2026-04-17
 
 v0.1.0 / v0.1.1 で見過ごしていた 3 件のユーザビリティ修正。
@@ -44,13 +70,11 @@ v0.1.0 リリース同日の追従リリース。7.p トリガー範囲の拡張
 ### Changed
 - AGENTS.md 7.p trigger scope widened from "progress reports" only to
   "all Japanese technical writing": learning notes, docs, design memos,
-  release notes, release articles. Also explicit list of Obsidian Vault
-  sub-paths (`Learning/`, `Writing/`, `Notes/`, `Docs/`, `X-Radar/`,
-  `AI-News/`) that, when written to, trigger finalize. File append case
-  clarified: the appended chunk goes through finalize; existing body
-  stays untouched. Motivated by observed bare-identifier violations in
-  `MainVault/Learning/Rust learning note/*.md` (narrow slice, parity,
-  fail-close, regression, contract drift — all bare).
+  release notes, release articles. File append case clarified: the
+  appended chunk goes through finalize; existing body stays untouched.
+  Motivated by observed bare-identifier violations in learning notes
+  (narrow slice, parity, fail-close, regression, contract drift — all
+  bare).
 
 ## [0.1.0] - 2026-04-17
 

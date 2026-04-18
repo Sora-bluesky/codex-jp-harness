@@ -1,18 +1,18 @@
 やったこと
 
-TASK-306 の小さな変更として、prompt_transport=stdin を pane dispatch 側で受け入れ、send-paste 経由に揃えました。exec_mode は安全側で file-backed のまま固定しました。
-次の小さな変更として TASK-289 を進め、desktop-summary --stream --json を追加しました。Tauri 側は inbox / digest の別購読から、summary stream 1本で更新を受ける形へ切り替えました。
+TASK-101 の小さな変更として、prompt_transport=stdin を pane dispatch 側で受け入れ、send-paste 経由に揃えました。exec_mode は安全側で file-backed のまま固定しました。
+次の小さな変更として TASK-102 を進め、app-summary --stream --json を追加しました。Tauri 側は inbox / digest の別購読から、summary stream 1本で更新を受ける形へ切り替えました。
 この 2 つの変更をそれぞれ PR 化し、#496 と #497 をマージしました。
-外部計画も更新し、TASK-306 と TASK-289 を done にしました。
-v0.22.0 に紐づく実装タスクがすべて完了していることを確認し、タグ v0.22.0 を切って GitHub Release を公開しました。
+外部計画も更新し、TASK-101 と TASK-102 を done にしました。
+v1.0.0 に紐づく実装タスクがすべて完了していることを確認し、タグ v1.0.0 を切って GitHub Release を公開しました。
 あわせてポスト案を x-thread-draft.md に保存しました。release note も release-notes.md に保存済みです。
 確認結果
 
-TASK-306 は Pester 246/246、git-guard 通過後にマージ済みです。
-TASK-289 は Pester 248/248、cargo test、npm run build、git-guard、audit-public-surface を通したうえでマージ済みです。
-GitHub Actions の release workflow Release Core Binary run 24544183143 は成功し、v0.22.0 の Release まで完了しました。
+TASK-101 は pytest 246/246、lint-guard 通過後にマージ済みです。
+TASK-102 は pytest 248/248、cargo test、npm run build、lint-guard、audit-surface を通したうえでマージ済みです。
+GitHub Actions の release workflow Release Core Binary run 24544183143 は成功し、v1.0.0 の Release まで完了しました。
 現在のローカルは main でクリーンです。
 次にやること
 
-次の slice は TASK-278 です。
+次の slice は TASK-103 です。
 board / inbox / digest / explain の golden corpus と Rust parity の残差を見て、fixture 駆動の小さな変更に分けて進めます。

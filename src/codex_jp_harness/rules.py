@@ -77,9 +77,23 @@ def _strip_code_blocks(text: str) -> str:
     return re.sub(r"```.*?```", _blank, text, flags=re.DOTALL)
 
 
+def _mask_markdown_links(line: str) -> str:
+    """Mask the URL portion of markdown links `[text](url)` with spaces.
+
+    Without this, bare_identifier flags the URL inside the parentheses as a
+    code identifier (URLs contain `.`, `/`, `-`).
+    """
+    return re.sub(
+        r"(\[[^\]]*\])(\([^)]*\))",
+        lambda m: m.group(1) + " " * len(m.group(2)),
+        line,
+    )
+
+
 def _mask_inline_code(line: str) -> str:
     """Mask backtick-enclosed spans with spaces (preserve column positions)."""
-    return re.sub(r"`[^`]*`", lambda m: " " * len(m.group()), line)
+    masked = _mask_markdown_links(line)
+    return re.sub(r"`[^`]*`", lambda m: " " * len(m.group()), masked)
 
 
 def detect_banned_terms(text: str, cfg: RuleConfig) -> list[Violation]:
