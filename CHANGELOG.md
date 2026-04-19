@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ドキュメントの汎用化 patch。インストール手順で例示していたディレクトリが特定の個人規約寄りだったため、より一般的なパス例に置換した。合わせて `config/agents_rule.md` と README 移行案内の主観表現を客観的な文言に整理した。Sanitize CI に再発防止パターンを追加した。
 
 ### Changed
-- **インストール手順のパス例を汎用化**。`%USERPROFILE%\Documents\Projects\apps\` / `C:\Users\<username>\Documents\Projects\apps\` → `%USERPROFILE%\Projects\` / `C:\Users\<username>\Projects\` に置換（README パターン A + `docs/INSTALL.md` 全 3 箇所）。
+- **インストール手順のパス例を汎用化**。README パターン A と `docs/INSTALL.md` の 3 箇所で示していた Windows クローン先例を、より一般的な `%USERPROFILE%\Projects\` / `C:\Users\<username>\Projects\` 形式に整理した。
 - **`config/agents_rule.md` と README 移行案内の主観表現を整理**。「筆者個人の AGENTS.md の番号体系」→「当初の AGENTS.md の番号体系」（2 箇所）。`config/agents_rule.md` は `~/.codex/AGENTS.md` に追記されるため、利用者環境にも反映される。
 - **Sanitize CI のパターンに `Documents[\\/]Projects[\\/]apps` を追加**。ドキュメントの汎用化が将来の編集で後戻りしないようゲートで強制する。
 
