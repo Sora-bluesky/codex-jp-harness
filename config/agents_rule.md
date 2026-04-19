@@ -3,7 +3,7 @@ codex-jp-harness: AGENTS.md に追記するルール本文
 install.ps1 -AppendAgentsRule / install.sh --append-agents-rule で自動追記される。
 
 本規約の正式名称は「日本語技術文の品質ゲート」。ドキュメント中では「品質ゲート規約」と略称する。
-「7.p」「7.q」は v0.2.0 以前の内部旧呼称（筆者個人の AGENTS.md の番号体系に由来）で、
+「7.p」「7.q」は v0.2.0 以前の内部旧呼称（当初の AGENTS.md の番号体系に由来）で、
 現行ドキュメントからは削除済み。本ファイルが呼称の SSoT。
 
 スタンドアロン形式（## 見出しで独立セクション）なので、フレッシュな AGENTS.md
