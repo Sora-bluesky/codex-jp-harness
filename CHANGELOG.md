@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-04-19
+
+install スクリプトが `jp-harness-tune` skill まで配置するようになった feature リリース。MCP 登録・AGENTS.md 追記・skill 配置を 1 コマンドで完了できる。
+
 ### Changed
 - **`install.ps1` / `install.sh` が `jp-harness-tune` skill を自動配置するように
   なった**。v0.2.1 で同梱した `skills/jp-harness-tune/SKILL.md` を
