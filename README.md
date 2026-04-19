@@ -108,7 +108,7 @@ codex-jp-harness/
 ├── jp_lint.yaml                (任意・手動配置) user-local override。
 │                               `codex-jp-tune` で対話編集、または手で yaml を書く
 └── skills/
-    └── jp-harness-tune/        (任意・手動コピー) 対話チューニング skill。
+    └── jp-harness-tune/        install script が自動配置する対話チューニング skill。
         └── SKILL.md            Codex CLI から `$jp-harness-tune` で呼び出す
 ```
 
@@ -132,7 +132,8 @@ https://github.com/Sora-bluesky/codex-jp-harness
 3. OS に応じたインストールスクリプトを実行する
    - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
-   (Codex config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う)
+   (Codex config.toml への MCP 登録、AGENTS.md への品質ゲート規約追記、
+    jp-harness-tune skill の ~/.codex/skills/ への配置を一括で行う)
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
 5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
 
@@ -164,7 +165,7 @@ uv sync
 pwsh scripts\install.ps1 -AppendAgentsRule
 ```
 
-どちらのスクリプトも `~/.codex/config.toml` に MCP サーバー登録を追記し、`--append-agents-rule` / `-AppendAgentsRule` 指定時は `~/.codex/AGENTS.md` にも `config/agents_rule.md` の内容を追記します。
+どちらのスクリプトも `~/.codex/config.toml` に MCP サーバー登録を追記し、`~/.codex/skills/jp-harness-tune/SKILL.md` を配置します（`--skip-skill` / `-SkipSkill` で skill 配置のみ opt-out 可）。`--append-agents-rule` / `-AppendAgentsRule` 指定時は `~/.codex/AGENTS.md` にも `config/agents_rule.md` の内容を追記します。
 
 ## 違反検出時の対処法
 
@@ -244,19 +245,9 @@ codex-jp-tune remove foobar
 
 `codex-jp-tune` は pyyaml のみに依存する単独 CLI で、バンドル済み `banned_terms.yaml` には触れない。書き出し時にコメントは保持されないため、リッチな構造を残したい場合は yaml を手編集する。
 
-### Codex Skill (任意)
+### Codex Skill `$jp-harness-tune`
 
-Codex CLI には `~/.codex/skills/<name>/SKILL.md` を配置するとユーザースキルとして登録される仕組みがあります（スキルファイル名は `SKILL.md` 固定）。リポジトリ同梱の `skills/jp-harness-tune/SKILL.md` をその場所にコピーすると、対話的なチューニング支援が使えます。
-
-```bash
-# macOS / Linux / Git Bash
-mkdir -p ~/.codex/skills/jp-harness-tune
-cp skills/jp-harness-tune/SKILL.md ~/.codex/skills/jp-harness-tune/
-
-# Windows (PowerShell)
-New-Item -ItemType Directory -Force $HOME\.codex\skills\jp-harness-tune | Out-Null
-Copy-Item skills\jp-harness-tune\SKILL.md $HOME\.codex\skills\jp-harness-tune\
-```
+`install.ps1` / `install.sh` は `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。呼び出しは Codex CLI の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex CLI のスキルは `/` ではなく `$` sigil で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
 
 配置後の構造:
 
@@ -267,12 +258,24 @@ Copy-Item skills\jp-harness-tune\SKILL.md $HOME\.codex\skills\jp-harness-tune\
 ├── jp_lint.yaml                      任意: user-local override
 └── skills/
     └── jp-harness-tune/
-        └── SKILL.md                  このスキル本体
+        └── SKILL.md                  install script が配置
 ```
 
-呼び出しは Codex CLI の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex CLI のスキルは `/` ではなく `$` sigil で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
-
 `$CODEX_HOME` 環境変数を設定している場合は `$CODEX_HOME/skills/jp-harness-tune/` が配置先になります。
+
+**opt-out**: skill 配置が不要なら `install.ps1 -SkipSkill` / `install.sh --skip-skill` を指定してください。
+
+**手動上書きしたい場合**（カスタム編集 / 最新版への差し替え）:
+
+```bash
+# macOS / Linux / Git Bash
+cp skills/jp-harness-tune/SKILL.md ~/.codex/skills/jp-harness-tune/
+
+# Windows (PowerShell)
+Copy-Item skills\jp-harness-tune\SKILL.md $HOME\.codex\skills\jp-harness-tune\ -Force
+```
+
+再インストール時の挙動: 配置先に既存の `SKILL.md` があり、内容がバンドル版と一致していれば上書き（冪等）、カスタム編集して差分があれば上書きをスキップし stderr に警告を出します。カスタム編集を捨てて最新版に揃えたい場合は、配置先ファイルを先に削除してから install を再実行してください。
 
 ### 典型的な運用フロー
 

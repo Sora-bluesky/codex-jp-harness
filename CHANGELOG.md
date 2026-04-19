@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`install.ps1` / `install.sh` が `jp-harness-tune` skill を自動配置するように
+  なった**。v0.2.1 で同梱した `skills/jp-harness-tune/SKILL.md` を
+  `~/.codex/skills/jp-harness-tune/SKILL.md` にコピーするロジックをインストーラー
+  に追加。既存ファイルが bundled と SHA-256 一致なら上書き（冪等）、
+  カスタム編集して差分があれば上書きをスキップして stderr に警告を出し、
+  利用者の編集を保護する。opt-out フラグは `-SkipSkill` (PowerShell) /
+  `--skip-skill` (bash)。
+- **README の skill 配置手順を install script 前提に再構成**。「Codex Skill
+  (任意)」section は「自動配置される。手動上書きの場合」に書き換え、
+  パターン A の手順 3 の説明にも skill 配置が一括で行われる旨を追記。
+  「インストールで変更されるユーザー環境」ツリーの skill 行を
+  `(任意・手動コピー)` → `install script が自動配置` に更新。
+
+### Notes
+- v0.2.1 で手動コピーした利用者は、`install` を再実行した際に bundled と
+  同一内容であれば冪等に上書きされ、カスタム編集していればスキップされる
+  （既存の編集は保護される）ため、特別な作業は不要。
+- `pip install codex-jp-harness` のみの利用者は wheel に `skills/` が
+  含まれないため、引き続き git clone + install script の経路が必要。
+  wheel への同梱は v0.3 で検討する。
+
 ## [0.2.1] - 2026-04-18
 
 v0.2.0 リリース後に発見された整合性問題を一括修正する patch リリース。機能追加はなし、ドキュメントと skill 配布形式の correctness 修正のみ。
