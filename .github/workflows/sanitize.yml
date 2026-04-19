@@ -18,7 +18,7 @@ jobs:
           # Pattern is base64-encoded so this workflow file does not itself
           # match the check (which would create a self-referential failure).
           # Allowed file: .mailmap (intentional alias for display purposes).
-          PATTERN=$(echo 'd2luc211eHxrb21laTExMTh8TWFpblZhdWx0fFgtUmFkYXJ8QUktTmV3cw==' | base64 -d)
+          PATTERN=$(echo 'd2luc211eHxrb21laTExMTh8TWFpblZhdWx0fFgtUmFkYXJ8QUktTmV3c3xEb2N1bWVudHNbXC9dUHJvamVjdHNbXC9dYXBwcw==' | base64 -d)
           MATCHES=$(git ls-files \
             | grep -v -E '^\.mailmap$|^\.github/workflows/sanitize\.yml$' \
             | xargs -I{} grep -lE "$PATTERN" "{}" 2>/dev/null || true)

@@ -19,7 +19,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
 
 手順:
 1. 任意のプロジェクト用ディレクトリに git clone する
-   (例: Windows なら %USERPROFILE%\Documents\Projects\apps\ など、
+   (例: Windows なら %USERPROFILE%\Projects\ など、
     macOS/Linux なら ~/src/ や ~/Projects/ など)
 2. リポジトリ内で `uv sync` を実行する（uv 未インストールならインストールから）
 3. OS に応じたインストールスクリプトを実行する
@@ -40,7 +40,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
 ### 1. リポジトリを取得
 
 ```powershell
-cd C:\Users\<username>\Documents\Projects\apps\
+cd C:\Users\<username>\Projects\
 git clone https://github.com/Sora-bluesky/codex-jp-harness.git
 cd codex-jp-harness
 ```
@@ -98,7 +98,7 @@ Codex セッションを開き、以下を入力:
 
 ```powershell
 # 直接起動してエラーを確認
-python C:\Users\<username>\Documents\Projects\apps\codex-jp-harness\src\codex_jp_harness\server.py
+python C:\Users\<username>\Projects\codex-jp-harness\src\codex_jp_harness\server.py
 ```
 
 ### Codex が finalize を呼ばない

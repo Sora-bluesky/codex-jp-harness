@@ -126,7 +126,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
 
 手順:
 1. 任意のプロジェクト用ディレクトリに git clone する
-   (例: Windows なら %USERPROFILE%\Documents\Projects\apps\ など、
+   (例: Windows なら %USERPROFILE%\Projects\ など、
     macOS/Linux なら ~/src/ や ~/Projects/ など)
 2. リポジトリ内で `uv sync` を実行する（uv 未インストールならインストールから）
 3. OS に応じたインストールスクリプトを実行する
@@ -300,7 +300,7 @@ Tier 1〜4 の比較や MCP finalize ゲート採用理由は [`docs/ARCHITECTUR
 
 ## v0.2.0 以前の利用者へ（内部呼称の移行）
 
-v0.2.0 以前では `config/agents_rule.md` の本文を内部で「**7.p ルール**」、severity 関連の将来拡張を「**7.q**」と呼んでいました。これらは筆者個人の `~/.codex/AGENTS.md` の番号体系（7.a〜7.o）に由来する歴史的通称で、v0.2.1 以降は「**品質ゲート規約**」に統一しています。
+v0.2.0 以前では `config/agents_rule.md` の本文を内部で「**7.p ルール**」、severity 関連の将来拡張を「**7.q**」と呼んでいました。これらは当初の `~/.codex/AGENTS.md` の番号体系（7.a〜7.o）に由来する歴史的通称で、v0.2.1 以降は「**品質ゲート規約**」に統一しています。
 
 - **実体への影響はなし**: `~/.codex/AGENTS.md` に「7.p」「7.q」として追記済みの内容はそのまま動作します
 - **呼び名だけの変更**: 現行ドキュメントからは「7.p」「7.q」呼称を削除しました（CHANGELOG の過去エントリは歴史的記録として保持）

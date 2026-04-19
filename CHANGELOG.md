@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-04-19
+
+ドキュメントの汎用化 patch。インストール手順で例示していたディレクトリが特定の個人規約寄りだったため、より一般的なパス例に置換した。合わせて `config/agents_rule.md` と README 移行案内の主観表現を客観的な文言に整理した。Sanitize CI に再発防止パターンを追加した。
+
+### Changed
+- **インストール手順のパス例を汎用化**。README パターン A と `docs/INSTALL.md` の 3 箇所で示していた Windows クローン先例を、より一般的な `%USERPROFILE%\Projects\` / `C:\Users\<username>\Projects\` 形式に整理した。
+- **`config/agents_rule.md` と README 移行案内の主観表現を整理**。「筆者個人の AGENTS.md の番号体系」→「当初の AGENTS.md の番号体系」（2 箇所）。`config/agents_rule.md` は `~/.codex/AGENTS.md` に追記されるため、利用者環境にも反映される。
+- **Sanitize CI のパターンに `Documents[\\/]Projects[\\/]apps` を追加**。ドキュメントの汎用化が将来の編集で後戻りしないようゲートで強制する。
+
+### Notes
+- コード変更なし。既存 81 件の pytest は全通過。
+- `config/agents_rule.md` が変わるので、利用者は既存の `~/.codex/AGENTS.md` の規約ブロックを手動削除 → `install.ps1 -AppendAgentsRule` / `install.sh --append-agents-rule` を再実行 → Codex CLI 再起動で新文言に差し替え可能。v0.2.3 / v0.2.4 と同じ手順。
+
 ## [0.2.4] - 2026-04-19
 
 現行ドキュメントを **Codex 専用**に整理する patch。本リポジトリは OpenAI Codex CLI を唯一のターゲットとし、他の AI エージェント（Claude Code 等）は前提としない方針を明確化した。歴史的記述は不変性保持のため維持している。
