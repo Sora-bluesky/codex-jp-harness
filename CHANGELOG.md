@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-04-19
+
+発火トリガー仕様漏れの bug fix。v0.2.2 までは `config/agents_rule.md` の発火トリガーが OR 条件（「500 文字超」「見出しあり」「特定パス書き込み」等）で定義されていたため、短い会話調の進捗報告（約 400 文字、見出しなし）が `finalize` をスキップして素通りしていた。品質ゲートと自称するのに漏れる状態は dogfooding として自己矛盾。
+
+### Fixed
+- **発火トリガーを opt-out 方式に変更**。日本語を含む応答は**原則全て** `mcp__jp_lint__finalize` の対象とし、**除外 4 パターンに完全一致する時のみ**呼び出しをスキップできる:
+  - コードブロック / 差分単独（日本語地の文を含まない）
+  - 20 文字以内の 1 行相槌
+  - yes / no の二値回答
+  - 日本語文字をまったく含まない応答
+  - 500 文字閾値と冗長 3 条件（見出し / 進捗内容 / 体裁）は削除
+- **「迷ったら呼ぶ」を原則として明記**。呼びすぎのコストは MCP 往復 1 回で実害がなく、呼び忘れのコストは品質ゲート自体の信頼失墜。前者が大幅に軽い、という非対称性を規約に反映した。
+
+### Notes
+- 既存の `~/.codex/AGENTS.md` に古い規約ブロックが追記済みの利用者は、以下で新規約に差し替えてください:
+  1. `~/.codex/AGENTS.md` から「日本語技術文の品質ゲート (codex-jp-harness)」セクションを手動削除
+  2. 更新されたリポジトリで `install.ps1 -AppendAgentsRule` / `install.sh --append-agents-rule` を再実行
+- MCP サーバー・lint ロジック (`rules.py`) には一切変更なし。既存 pytest 81 件は全通過する。
+
 ## [0.2.2] - 2026-04-19
 
 install スクリプトが `jp-harness-tune` skill まで配置するようになった feature リリース。MCP 登録・AGENTS.md 追記・skill 配置を 1 コマンドで完了できる。
