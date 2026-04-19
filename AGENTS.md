@@ -1,10 +1,10 @@
 # AGENTS.md — codex-jp-harness
 
-> Codex / Claude Code がこのリポジトリで作業する時に参照する規約。グローバルの `~/.codex/AGENTS.md` に上書きせず、**追加の制約**として作用する。
+> Codex がこのリポジトリで作業する時に参照する規約。グローバルの `~/.codex/AGENTS.md` に上書きせず、**追加の制約**として作用する。
 
 ## このリポジトリについて
 
-`codex-jp-harness` は、OpenAI Codex CLI の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。OpenAI が Codex CLI に Claude Code 水準の日本語対応を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
+`codex-jp-harness` は、OpenAI Codex CLI の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。OpenAI が Codex CLI に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
 
 ## 技術スタック
 
@@ -49,7 +49,7 @@
 
 ## 自分たちの dogfooding
 
-このツール自身が日本語技術文の品質ゲートなので、**このリポで作業する Codex / Claude Code の日本語出力も同じルールに従う**:
+このツール自身が日本語技術文の品質ゲートなので、**このリポで作業する Codex の日本語出力も同じルールに従う**:
 
 - コード識別子（ファイル名・関数名・変数名・ブランチ名・PR 番号・タスク ID・パラメータ名・コマンド名）は**必ずバッククォートで囲む**
 - 進捗報告・学習ノート・コミットメッセージ（内容）・PR 説明・リリースノート等は `mcp__jp_lint__finalize` を通す

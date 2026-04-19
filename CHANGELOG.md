@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-04-19
+
+現行ドキュメントを **Codex 専用**に整理する patch。本リポジトリは OpenAI Codex CLI を唯一のターゲットとし、他の AI エージェント（Claude Code 等）は前提としない方針を明確化した。歴史的記述は不変性保持のため維持している。
+
+### Changed
+- **`README.md` / `AGENTS.md` / `config/agents_rule.md` から "Claude Code" 言及を削除**（全 7 箇所）:
+  - README ディレクトリ構成の `AGENTS.md` 説明を「Codex/Claude Code がこのリポで作業する時の規約」→「Codex がこのリポで作業する時の規約」
+  - 暫定対策の比較基準「Claude Code 水準の日本語対応」→「日本語自然化」（README / AGENTS.md / `config/agents_rule.md` / DEPRECATION トリガー）
+  - `AGENTS.md` の dogfooding 記述「Codex / Claude Code の日本語出力」→「Codex の日本語出力」
+- `config/agents_rule.md` の変更で、`~/.codex/AGENTS.md` に追記される規約本文も Codex 専用の文言に更新される。
+
+### Notes
+- `CHANGELOG.md` の過去エントリ（v0.1.1 / v0.2.0 / v0.2.1）は **歴史的記録として Claude Code 言及を保持**。事実の改変ではなく現行ドキュメントの方針整理。
+- `.gitignore` の `.claude/` エントリは保持。ドキュメントは Codex 専用だが、開発者が補助的に Claude Code を使った時の `.claude/` ディレクトリ誤コミットを防ぐセーフティネットとして残す。
+- 既存の `~/.codex/AGENTS.md` に v0.2.3 の規約ブロックを追記済みの利用者は、v0.2.3 と同じ手順（旧ブロック手動削除 → `install.ps1 -AppendAgentsRule` 再実行 → Codex CLI 再起動）で新文言に差し替え可能。
+
 ## [0.2.3] - 2026-04-19
 
 発火トリガー仕様漏れの bug fix。v0.2.2 までは `config/agents_rule.md` の発火トリガーが OR 条件（「500 文字超」「見出しあり」「特定パス書き込み」等）で定義されていたため、短い会話調の進捗報告（約 400 文字、見出しなし）が `finalize` をスキップして素通りしていた。品質ゲートと自称するのに漏れる状態は dogfooding として自己矛盾。
