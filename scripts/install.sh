@@ -12,11 +12,15 @@ set -euo pipefail
 APPEND_AGENTS_RULE=false
 FORCE=false
 SKIP_SKILL=false
+ENABLE_HOOKS=false
+FORCE_HOOKS=false
 for arg in "$@"; do
   case "$arg" in
     --append-agents-rule) APPEND_AGENTS_RULE=true ;;
     --force)              FORCE=true ;;
     --skip-skill)         SKIP_SKILL=true ;;
+    --enable-hooks)       ENABLE_HOOKS=true ;;
+    --force-hooks)        FORCE_HOOKS=true ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -43,6 +47,10 @@ RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
 SKILL_SRC="$REPO_ROOT/skills/jp-harness-tune/SKILL.md"
 SKILL_DEST_DIR="$CODEX_DIR/skills/jp-harness-tune"
 SKILL_DEST_PATH="$SKILL_DEST_DIR/SKILL.md"
+HOOKS_JSON_PATH="$CODEX_DIR/hooks.json"
+HOOKS_TEMPLATE="$REPO_ROOT/config/hooks.example.json"
+STOP_HOOK_PATH="$REPO_ROOT/hooks/stop-finalize-check.sh"
+START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
@@ -151,6 +159,78 @@ else
   fi
 fi
 
+# Hooks placement (opt-in, experimental, Codex 0.120.0+)
+if [[ "$ENABLE_HOOKS" == "true" ]]; then
+  echo ""
+  echo "[codex-jp-harness] --enable-hooks: configuring Stop + SessionStart hooks (experimental)."
+
+  codex_version_ok=false
+  if command -v codex >/dev/null 2>&1; then
+    version_str="$(codex --version 2>/dev/null || true)"
+    echo "[codex-jp-harness] Detected Codex version: $version_str"
+    if [[ "$version_str" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+      major="${BASH_REMATCH[1]}"
+      minor="${BASH_REMATCH[2]}"
+      if [[ "$major" -gt 0 ]] || { [[ "$major" -eq 0 ]] && [[ "$minor" -ge 120 ]]; }; then
+        codex_version_ok=true
+      fi
+    fi
+  fi
+
+  if [[ "$codex_version_ok" != "true" ]]; then
+    echo "[codex-jp-harness] Codex CLI 0.120.0 or later is required for hooks. Skipping hooks setup." >&2
+  elif [[ ! -f "$STOP_HOOK_PATH" || ! -f "$START_HOOK_PATH" || ! -f "$HOOKS_TEMPLATE" ]]; then
+    echo "[codex-jp-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
+  else
+    # Ensure codex_hooks = true in config.toml (idempotent)
+    if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
+      echo "[codex-jp-harness] codex_hooks = true already set in config.toml."
+    else
+      if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
+        printf '\n' >> "$CONFIG_PATH"
+      fi
+      printf 'codex_hooks = true\n' >> "$CONFIG_PATH"
+      echo "[codex-jp-harness] Set codex_hooks = true in config.toml."
+    fi
+
+    # Build absolute commands
+    stop_cmd="bash \"$STOP_HOOK_PATH\""
+    start_cmd="bash \"$START_HOOK_PATH\""
+    # JSON-escape backslashes and double quotes
+    stop_cmd_json="$(printf '%s' "$stop_cmd" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$stop_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    start_cmd_json="$(printf '%s' "$start_cmd" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$start_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+
+    rendered="$(python3 - "$HOOKS_TEMPLATE" "$stop_cmd_json" "$start_cmd_json" <<'PY' 2>/dev/null || true
+import sys, pathlib
+path, stop_cmd, start_cmd = sys.argv[1], sys.argv[2], sys.argv[3]
+tpl = pathlib.Path(path).read_text(encoding="utf-8")
+sys.stdout.write(tpl.replace("{{STOP_COMMAND}}", stop_cmd).replace("{{SESSION_START_COMMAND}}", start_cmd))
+PY
+)"
+    if [[ -z "$rendered" ]]; then
+      echo "[codex-jp-harness] Failed to render hooks.json template (python3 required)." >&2
+    elif [[ -f "$HOOKS_JSON_PATH" ]]; then
+      existing="$(cat "$HOOKS_JSON_PATH")"
+      if [[ "$(printf '%s' "$existing" | tr -d '[:space:]')" == "$(printf '%s' "$rendered" | tr -d '[:space:]')" ]]; then
+        echo "[codex-jp-harness] hooks.json already up to date."
+      elif [[ "$FORCE_HOOKS" == "true" ]]; then
+        printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
+        echo "[codex-jp-harness] Overwrote existing hooks.json (--force-hooks)."
+      else
+        echo "[codex-jp-harness] Existing hooks.json at $HOOKS_JSON_PATH differs from bundled template." >&2
+        echo "[codex-jp-harness] Review and re-run with --force-hooks to overwrite, or merge manually." >&2
+        echo "[codex-jp-harness] Bundled template path: $HOOKS_TEMPLATE" >&2
+      fi
+    else
+      printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
+      echo "[codex-jp-harness] Wrote $HOOKS_JSON_PATH"
+    fi
+  fi
+fi
+
 echo ""
 echo "[codex-jp-harness] Installation complete."
 echo "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill."
+if [[ "$ENABLE_HOOKS" == "true" ]]; then
+  echo "[codex-jp-harness] Hooks (experimental) require Codex CLI 0.120.0+. See docs/HOOKS.md for details."
+fi

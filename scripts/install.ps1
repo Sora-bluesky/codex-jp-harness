@@ -7,7 +7,9 @@
 param(
     [switch]$Force,
     [switch]$AppendAgentsRule,
-    [switch]$SkipSkill
+    [switch]$SkipSkill,
+    [switch]$EnableHooks,
+    [switch]$ForceHooks
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +24,10 @@ $configPath = Join-Path $codexDir "config.toml"
 $agentsPath = Join-Path $codexDir "AGENTS.md"
 $skillDestDir  = Join-Path $codexDir "skills\jp-harness-tune"
 $skillDestPath = Join-Path $skillDestDir "SKILL.md"
+$hooksJsonPath = Join-Path $codexDir "hooks.json"
+$hooksTemplate = Join-Path $repoRoot "config\hooks.example.json"
+$stopHookPath  = Join-Path $repoRoot "hooks\stop-finalize-check.ps1"
+$startHookPath = Join-Path $repoRoot "hooks\session-start-reeducate.ps1"
 
 # Preflight
 if (-not (Test-Path $serverPath)) {
@@ -126,6 +132,79 @@ if ($SkipSkill) {
     }
 }
 
+# Hooks placement (opt-in, experimental, Codex 0.120.0+)
+if ($EnableHooks) {
+    Write-Host ""
+    Write-Host "[codex-jp-harness] -EnableHooks: configuring Stop + SessionStart hooks (experimental)." -ForegroundColor Cyan
+
+    # Codex version gate
+    $codexVersionOk = $false
+    try {
+        $codexVersionRaw = & codex --version 2>$null
+        if ($LASTEXITCODE -eq 0 -and $codexVersionRaw) {
+            $versionStr = ($codexVersionRaw | Out-String).Trim()
+            if ($versionStr -match '(\d+)\.(\d+)\.(\d+)') {
+                $major = [int]$Matches[1]; $minor = [int]$Matches[2]
+                if (($major -gt 0) -or ($major -eq 0 -and $minor -ge 120)) {
+                    $codexVersionOk = $true
+                }
+                Write-Host "[codex-jp-harness] Detected Codex version: $versionStr" -ForegroundColor Green
+            }
+        }
+    } catch {}
+
+    if (-not $codexVersionOk) {
+        Write-Warning "Codex CLI 0.120.0 or later is required for hooks. Skipping hooks setup."
+    } elseif (-not (Test-Path $stopHookPath) -or -not (Test-Path $startHookPath) -or -not (Test-Path $hooksTemplate)) {
+        Write-Warning "Hooks source files missing in repo. Skipping hooks setup."
+    } else {
+        # Ensure codex_hooks = true in config.toml (idempotent)
+        $currentConfig = Get-Content $configPath -Raw
+        if ($currentConfig -match '(?m)^\s*codex_hooks\s*=\s*true\b') {
+            Write-Host "[codex-jp-harness] codex_hooks = true already set in config.toml." -ForegroundColor Green
+        } else {
+            if (-not $currentConfig.EndsWith("`n")) {
+                Add-Content -Path $configPath -Value "`n" -NoNewline
+            }
+            Add-Content -Path $configPath -Value "codex_hooks = true`n" -NoNewline
+            Write-Host "[codex-jp-harness] Set codex_hooks = true in config.toml." -ForegroundColor Green
+        }
+
+        # Build hooks.json by substituting placeholders
+        $template = Get-Content $hooksTemplate -Raw
+
+        $stopAbs  = (Resolve-Path $stopHookPath).Path
+        $startAbs = (Resolve-Path $startHookPath).Path
+        # JSON-escape backslashes and double quotes
+        $stopCmdRaw  = "pwsh -NoProfile -File `"$stopAbs`""
+        $startCmdRaw = "pwsh -NoProfile -File `"$startAbs`""
+        $stopCmdJson  = $stopCmdRaw  -replace '\\', '\\' -replace '"', '\"'
+        $startCmdJson = $startCmdRaw -replace '\\', '\\' -replace '"', '\"'
+
+        $rendered = $template.Replace('{{STOP_COMMAND}}', $stopCmdJson).Replace('{{SESSION_START_COMMAND}}', $startCmdJson)
+
+        if (Test-Path $hooksJsonPath) {
+            $existing = Get-Content $hooksJsonPath -Raw
+            if ($existing.Trim() -eq $rendered.Trim()) {
+                Write-Host "[codex-jp-harness] hooks.json already up to date." -ForegroundColor Green
+            } elseif ($ForceHooks) {
+                Set-Content -Path $hooksJsonPath -Value $rendered -NoNewline -Encoding utf8
+                Write-Host "[codex-jp-harness] Overwrote existing hooks.json (-ForceHooks)." -ForegroundColor Yellow
+            } else {
+                Write-Warning "Existing hooks.json at $hooksJsonPath differs from the bundled template."
+                Write-Warning "Review the difference and re-run with -ForceHooks to overwrite, or merge manually."
+                Write-Warning "Bundled template path: $hooksTemplate"
+            }
+        } else {
+            Set-Content -Path $hooksJsonPath -Value $rendered -NoNewline -Encoding utf8
+            Write-Host "[codex-jp-harness] Wrote $hooksJsonPath" -ForegroundColor Green
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "[codex-jp-harness] Installation complete." -ForegroundColor Green
 Write-Host "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
+if ($EnableHooks) {
+    Write-Host "[codex-jp-harness] Hooks (experimental) require Codex CLI 0.120.0+. See docs/HOOKS.md for details." -ForegroundColor Green
+}

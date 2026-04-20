@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-04-20
+
+Codex 0.120.0+ の Stop / SessionStart hook を opt-in で組み込む minor リリース。MCP `finalize` ゲートの呼び忘れを次セッション起動時に再教育プロンプトで補完する後方検知ループを追加した。MCP 本体と既存運用への破壊的変更はなく、`--enable-hooks` 指定時のみ hooks が配置される。
+
+### Added
+- **`hooks/stop-finalize-check.{ps1,sh}`**: Stop hook。Codex 0.120.x の stdin 仕様を受けて `last_assistant_message` + transcript を走査し、日本語応答かつ `finalize` 未呼び出しなら `~/.codex/state/jp-harness.jsonl` に `missing-finalize` を記録する。fail-open（null transcript は誤検知を避けてスキップ）。
+- **`hooks/session-start-reeducate.{ps1,sh}`**: SessionStart hook。`source=startup|clear` 時に state を読み、上位 3 種別の違反を 400 文字以内の再教育プロンプトに整形して stdout に出力する。`source=resume` では既存文脈を壊さないためスキップ。対象エントリには `consumed: true` を付けて再書き込み。
+- **`hooks/bench.{ps1,sh}`**: Stop / SessionStart 両 hook を 10 回実行して mean / max を表示するベンチ。
+- **`config/hooks.example.json`**: `~/.codex/hooks.json` のテンプレート。install script が `{{STOP_COMMAND}}` / `{{SESSION_START_COMMAND}}` を絶対パスで置換して書き出す。
+- **`scripts/install.{ps1,sh}` に `--enable-hooks` / `-EnableHooks` フラグ**: opt-in で hook 配置を有効化する。Codex CLI 0.120.0 未満では警告を出してスキップ、他のインストール処理は継続。`--force-hooks` / `-ForceHooks` で既存 `hooks.json` を上書き。
+- **`docs/HOOKS.md`**: hook 仕様・state スキーマ・性能目標・プライバシー方針・トラブルシューティングをまとめたドキュメント。
+- **`docs/assets/arch-0[1-4]-*.png`**: ARCHITECTURE に埋め込む技術図 4 枚（スイスチーズ層構造 / データフロー / レイヤー責務 / コンテキスト失効）。
+
+### Changed
+- **`docs/ARCHITECTURE.md` を全面改訂**。ASCII 図に加えて PNG 図を埋め込み、MCP ゲート + Stop / SessionStart hook の二層構成を説明する節を追加した。
+- **`README.md` を 5 セクション構造に整理**（なぜ存在するのか / 仕組み / インストール / 運用とチューニング / 公式対応への導線）。既存情報は保持しつつ、hook 関連の案内を「仕組み」「インストール」に組み込んだ。
+- **`config/agents_rule.md` に 1 行追記**: 呼び忘れは Stop hook が検知して次回セッション起動時に再教育プロンプトが注入される旨を明記した。install で `~/.codex/AGENTS.md` に反映される。
+
+### Fixed
+- **Windows + Git Bash で `.sh` hook が Microsoft Store の python3 スタブを掴んで無音失敗する問題**。python 実行可能ファイルを `--version` 相当の呼び出しで検証し、スタブを弾くように修正した。
+- **`.sh` hook が Windows の cp932 コードページで日本語プロンプトを出力して文字化けする問題**。`PYTHONIOENCODING=utf-8` を強制して UTF-8 出力に統一した。合わせて `.ps1` も `[Console]::OutputEncoding = UTF-8` を設定した。
+
+### Notes
+- 既存利用者への影響なし。従来の `install.ps1 -AppendAgentsRule` / `install.sh --append-agents-rule` は挙動が変わらない。hooks を使いたい場合のみ `-EnableHooks` / `--enable-hooks` を追加する。
+- hooks はリポジトリローカルの `.codex/config.toml` では動作しない既知バグ（[Issue #17532](https://github.com/openai/codex/issues/17532)）があるため、グローバル `~/.codex/hooks.json` にのみ登録する。
+- `install.ps1` / `install.sh` は `codex --version` が 0.120.0 未満の場合に `codex_hooks` 設定を書かず、他の処理を継続する。既存環境の互換性は保たれる。
+- 既存 81 件の pytest は全通過。hook 関連の E2E は 7 シナリオを手動で検証（null transcript fail-open / 英語応答スキップ / 日本語 + 未呼び出し記録 / transcript に finalize 有りでスキップ / startup + 未消化で再教育 / resume でスキップ / 期限切れ無視）。
+
 ## [0.2.5] - 2026-04-19
 
 ドキュメントの汎用化 patch。インストール手順で例示していたディレクトリが特定の個人規約寄りだったため、より一般的なパス例に置換した。合わせて `config/agents_rule.md` と README 移行案内の主観表現を客観的な文言に整理した。Sanitize CI に再発防止パターンを追加した。

@@ -1,84 +1,142 @@
 # Architecture
 
-本ドキュメントは codex-jp-harness の設計判断を記録する。実装詳細は更新時に追記する。
+本ドキュメントは codex-jp-harness の設計判断を記録する。MCP `finalize` ゲート（Tier 2）と Stop + SessionStart hook（Tier 1 補完）の二層構成が核で、それぞれが独立した失敗領域を埋める。
 
-## 全体像
+## 全体像（スイスチーズモデル）
 
-```
-┌────────────┐   (1) draft      ┌──────────────┐
-│            │ ───────────────> │              │
-│   Codex    │                  │  jp-lint     │
-│    CLI     │ <──────────────  │  MCP Server  │
-│            │   (2) verdict    │              │
-└─────┬──────┘                  └──────────────┘
-      │
-      │ (3) final response (only if ok:true)
-      ▼
-┌────────────┐
-│   User     │
-└────────────┘
+品質担保を 4 層（規約 / MCP ゲート / hook 後方検知 / 運用監視）で重ねる「スイスチーズ」配置。各層の穴（漏れ）がずれているため、1 層抜けても他の層で捕捉される。
 
-後方検知:
-┌────────────┐   (A) turn end   ┌──────────────┐
-│   Codex    │ ───────────────> │  Stop hook   │
-└─────┬──────┘                  └──────┬───────┘
-      │                                │ (B) log violation
-      │                                ▼
-      │                         ┌──────────────┐
-      │                         │  violations  │
-      │                         │   .jsonl     │
-      │                         └──────┬───────┘
-      │ (D) re-education               │ (C) read on next session
-      ▼                                ▼
-┌────────────────────────────────────────────┐
-│  SessionStart hook injects re-education    │
-└────────────────────────────────────────────┘
-```
+![arch-01: Swiss-cheese layered defense](assets/arch-01-swiss-cheese.png)
 
-## Tier 比較（なぜ Tier 2 を選んだか）
+| 層 | 強制力 | 失敗ケース | 次層でカバー |
+|---|---|---|---|
+| 1. `AGENTS.md` 規約 | 低（確率論） | 指示を無視 | MCP ゲート |
+| 2. MCP `finalize` ゲート | 中〜高 | 呼び忘れ | Stop hook |
+| 3. Stop + SessionStart hook | 中 | hook が無効（0.120 未満 / repo-local 登録） | 運用監視 |
+| 4. 運用監視（stats.json） | 低（事後） | 月次レビュー漏れ | （運用者の責任） |
+
+## データフロー
+
+Codex が日本語応答を返すまでの MCP 往復と、Stop → SessionStart の後方検知ループを 1 つの図にまとめたもの。
+
+![arch-02: End-to-end data flow](assets/arch-02-data-flow.png)
+
+**同一ターン内の自動修正（95%+）**:
+1. ユーザー入力を Codex が受領
+2. Codex が下書きを生成
+3. Codex が `mcp__jp_lint__finalize(draft)` を呼ぶ
+4. `jp-lint` サーバーが `rules.py` で lint し、violations と `ok:{true,false}` を返す
+5. `ok: false` なら Codex が書き直して再度 `finalize`（最大 3 retry）
+6. `ok: true` を得たドラフトのみユーザーに返す
+
+**後方検知ループ（残り数%）**:
+A. ターン終了時、Stop hook が `last_assistant_message` + transcript を走査
+B. 日本語応答かつ transcript に `finalize` がなければ `~/.codex/state/jp-harness.jsonl` に `missing-finalize` を記録
+C. 次回セッション起動（`source == "startup" or "clear"`）で SessionStart hook が未消化エントリを読む
+D. 最大 400 文字の再教育プロンプトを stdout 経由で Codex 側に注入 → `consumed: true` で state を更新
+
+## レイヤー責務
+
+コンポーネントの責務を 4 層（ユーザー層 / Codex ランタイム / ハーネス / 永続化）に切り分けると、テスト容易性とアンインストール容易性が同時に得られる。
+
+![arch-03: Layer responsibility](assets/arch-03-layer-responsibility.png)
+
+| レイヤー | コンポーネント | 責務 | 依存先 |
+|---|---|---|---|
+| User | Codex CLI 入出力 | 自然言語での対話 | - |
+| Runtime | Codex 本体 / AGENTS.md / hooks | ルール読み込み、tool 呼び出し、hook 起動 | User 層 |
+| Harness | `server.py` / `rules.py` / hook scripts | lint + 記録 + 再教育 | Runtime 層 |
+| Persistence | `banned_terms.yaml` / `state/*.jsonl` / `stats.json` | 定義と履歴の保存 | - |
+
+依存が一方向（上から下のみ）のため:
+- `rules.py` は MCP プロトコルを知らない純関数としてテストできる
+- `banned_terms.yaml` を書き換えるだけでルール変更が完結する
+- hook を無効化しても MCP ゲートは独立して機能する（逆も然り）
+
+## Context Expiry（エントリの寿命管理）
+
+Stop hook が記録する state エントリは **24 時間の expiry** と `consumed` フラグで管理する。これにより古いエントリが永遠に再教育プロンプトとして再注入されることを防ぐ。
+
+![arch-04: Context expiry lifecycle](assets/arch-04-context-expiry.png)
+
+| 状態遷移 | トリガー | 挙動 |
+|---|---|---|
+| `active` → `active` | 他セッション開始（`source=resume`） | スキップ。文脈を壊さない |
+| `active` → `consumed` | 次回 startup / clear で SessionStart hook 発火 | 再教育プロンプトを出力し `consumed: true` を付ける |
+| `active` → `expired` | `ts + 24h < now` | SessionStart hook が無視（write もしない） |
+| `consumed` → `kept` | SessionStart hook の再書き込み | state ファイルに残るが再注入されない |
+
+**なぜ 24 時間**: 1 日に複数回 Codex セッションを開く典型的な運用で、**翌朝の最初のセッション**までに必ず再教育が届く設計。24 時間を超えたエントリは「直近の違反」ではないため再注入の価値が薄い。
+
+**なぜ末尾 20 行のみ評価**: jsonl が長期運用で肥大化しても SessionStart hook の起動コストが一定になる。20 行あれば連続した数セッション分の違反をカバーできる。
+
+## Tier 比較（なぜ Tier 2 + Tier 1 を選んだか）
 
 | Tier | 手段 | 実装コスト | UX | 強制力 | Codex 機能維持 |
 |---|---|---|---|---|---|
 | 1 | Stop hook + 次ターン注入 | 半日 | △（違反版も見える） | 中 | 完全 |
-| **2** | **MCP finalize ゲート** | **1〜2日** | **○（クリーン版のみ）** | **中〜高** | **完全** |
-| 3 | 外部ラッパースクリプト | 1〜2週 | ◎（完全透過） | 高 | 部分喪失 |
+| **2** | **MCP finalize ゲート** | **1〜2 日** | **○（クリーン版のみ）** | **中〜高** | **完全** |
+| 3 | 外部ラッパースクリプト | 1〜2 週 | ◎（完全透過） | 高 | 部分喪失 |
 | 4 | TUI プロキシ | 数週 | ◎ | 最高 | 完全 |
 
-Tier 2 + Tier 1 のハイブリッド（本実装）: 実装 2〜3 日で違反の 95%+ を同一ターン内で自動修正できる ROI 最適点。
+**本実装は Tier 2 + Tier 1 のハイブリッド**:
+- Tier 2（MCP `finalize`）で 95%+ の違反を同一ターン内に自動修正
+- Tier 1（Stop + SessionStart hook）で呼び忘れを翌セッションで再教育
+- 実装 2〜3 日、Codex 機能は完全維持、UX 劣化は再教育プロンプト 400 文字のみ
+
+ROI 最適点は Tier 2 単体ではなく Tier 2 + Tier 1。Tier 3 / 4 はコストが 10 倍で得られる違反削減は数%、採用に値しない。
 
 ## 主要コンポーネント
 
-### src/codex_jp_harness/server.py
-Codex から呼ばれる MCP サーバー本体。`finalize(draft)` ツールを公開する窓口。
+### `src/codex_jp_harness/server.py`
+Codex から呼ばれる MCP サーバー本体。FastMCP で `finalize(draft)` ツールを公開する窓口。`rules.py` の純関数にドラフトを渡して violations を返す。
 
-### src/codex_jp_harness/rules.py
-Lint ロジック。文字列を受け取り違反リストを返す純関数。副作用を持たせない。
+### `src/codex_jp_harness/rules.py`
+lint ロジック。文字列を受け取り違反リストを返す純関数。副作用を持たせない（stdout 書き込み・ファイル I/O なし）。ユニットテストは 28 件 + fixtures で実応答を検証。
 
-### config/banned_terms.yaml
-禁止語・閾値の単一情報源（Single Source of Truth）。ここを書き換えればルール変更が完結する。
+### `config/banned_terms.yaml`
+禁止語・閾値の**単一情報源（Single Source of Truth）**。ここを書き換えればルール変更が完結する。ユーザー側の `~/.codex/jp_lint.yaml` で override / disable / add が可能。
 
-### src/codex_jp_harness/hooks/
-PowerShell スクリプト（Stop, SessionStart）。Codex の hook 機構から呼ばれる。
+### `hooks/stop-finalize-check.{ps1,sh}`
+Stop hook スクリプト。Codex 0.120.x の stdin 仕様を受け、transcript を走査して `missing-finalize` を state に記録する。詳細は `docs/HOOKS.md`。
+
+### `hooks/session-start-reeducate.{ps1,sh}`
+SessionStart hook スクリプト。state を読んで再教育プロンプトを stdout に出力する。`source=resume` では文脈を壊さないよう発火しない。詳細は `docs/HOOKS.md`。
+
+### `config/hooks.example.json`
+`~/.codex/hooks.json` のテンプレート。install script が `{{STOP_COMMAND}}` / `{{SESSION_START_COMMAND}}` をリポジトリ内スクリプトの絶対パスで置換して書き出す。
+
+### `hooks/bench.{ps1,sh}`
+hook の性能計測。Stop < 50ms / SessionStart < 100ms（mean）を目標に 10 回実行して表示する。
 
 ## 設計原則
 
-1. **単一情報源**: 禁止語定義は `banned_terms.yaml` 1箇所のみ。`SKILL.md` からも参照する
+1. **単一情報源**: 禁止語定義は `banned_terms.yaml` 1 箇所のみ。`SKILL.md` からも参照する
 2. **疎結合**: `rules.py` は MCP プロトコルを知らない純関数
-3. **Graceful degradation**: MCP サーバー停止時は自己チェックで応答継続
-4. **観測可能性**: `stats.json` に呼び出し統計を自動記録、月次レビュー可能
-5. **アンインストール容易性**: `docs/DEPRECATION.md` で1コマンド相当のアンインストール手順を提供
+3. **Graceful degradation**: MCP サーバー停止時は自己チェックで応答継続、hook 例外時は exit 0 でターン継続
+4. **観測可能性**: `stats.json` に呼び出し統計を自動記録、state jsonl に呼び忘れを記録、月次レビュー可能
+5. **アンインストール容易性**: `docs/DEPRECATION.md` で 1 コマンド相当のアンインストール手順を提供
+6. **opt-in 実験機能**: hooks は `--enable-hooks` 指定時のみ。従来の MCP のみ運用は無影響
 
 ## トレードオフ
 
-- **トークン消費 +30〜50%**: 品質担保とのトレードオフ。月100報告で +$0.50 程度で許容範囲
+- **トークン消費 +30〜50%**: 品質担保とのトレードオフ。月 100 報告で +$0.50 程度で許容範囲
 - **形態素解析未採用**: 依存増・起動時間増を避けるためヒューリスティックで妥協。fugashi は将来拡張
-- **Windows 優先**: ユーザー環境優先。macOS/Linux は将来拡張
+- **repo-local hook 非対応**（[Issue #17532](https://github.com/openai/codex/issues/17532)）: Codex 側のバグのためグローバル登録に限定
+- **再教育プロンプト 400 文字制限**: Codex の SessionStart stdout を消化するため短く固定。違反種別は上位 3 件のみ要約
 
 ## 公式対応との関係
 
 本ハーネスは暫定対策。以下の公式機能が揃った時点で不要になる:
 - Codex CLI 本体での日本語自然化
-- Pre-response hook 機構
+- Pre-response hook 機構（出力前書き換え）
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）
 
 詳細は [`DEPRECATION.md`](DEPRECATION.md) 参照。
+
+## 関連ドキュメント
+
+- [`HOOKS.md`](HOOKS.md): Stop / SessionStart hook の詳細仕様と運用
+- [`INSTALL.md`](INSTALL.md): インストール手順（パターン A / B）
+- [`OPERATIONS.md`](OPERATIONS.md): 月次運用監視と指標
+- [`DEPRECATION.md`](DEPRECATION.md): 公式対応時のアンインストール手順
