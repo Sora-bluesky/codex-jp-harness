@@ -229,7 +229,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_stdout() -> None:
+    """Reconfigure stdout to UTF-8 so non-ASCII glyphs (≈, ×, 日本語) print on
+    Windows consoles whose default codepage is cp932. Silent no-op on older
+    Python / non-reconfigurable streams.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfig = getattr(stream, "reconfigure", None)
+        if reconfig is not None:
+            try:
+                reconfig(encoding="utf-8")
+            except Exception:
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_stdout()
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args) or 0)

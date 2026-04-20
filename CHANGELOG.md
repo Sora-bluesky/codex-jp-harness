@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-04-20
+
+`codex-jp-stats overhead` が Windows の cp932 コンソールで `UnicodeEncodeError` で落ちる問題の patch。出力文字列に含まれる `≈` (U+2248) と `×` (U+00D7) が cp932 にないため、デフォルト codepage の環境でクラッシュしていた。
+
+### Fixed
+- **`stats.main()` で `sys.stdout` / `sys.stderr` を UTF-8 に再構成**。`io.TextIOWrapper.reconfigure(encoding='utf-8')` を使用。reconfigure が存在しない環境（旧 Python / リダイレクト済みストリーム等）では silent no-op となり、従来挙動を維持する。
+- これにより Windows の cp932 コンソールでも `≈`、`×`、日本語文字が文字化けせず出力される。
+
+### Notes
+- コードパス以外の変更なし。pytest は 90 件全通過、ruff clean。
+- v0.2.9 / v0.2.10 で `codex-jp-stats overhead` を試して Windows で落ちた利用者は、`uv sync` で更新してください（MCP サーバー本体は変更ないので再起動不要。CLI 自体は `.venv` が新しくなれば即動く）。
+
 ## [0.2.10] - 2026-04-20
 
 v0.2.9 で追加した metrics jsonl が長期運用で青天井に肥大するのを防ぐ size-based rotation を追加する patch。既存データは失わず、`codex-jp-stats` は archive も併読する。
