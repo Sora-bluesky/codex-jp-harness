@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-04-20
+
+v0.2.9 で追加した metrics jsonl が長期運用で青天井に肥大するのを防ぐ size-based rotation を追加する patch。既存データは失わず、`codex-jp-stats` は archive も併読する。
+
+### Added
+- **`metrics.DEFAULT_MAX_BYTES = 20 MB` のしきい値を導入**。`record()` は書き込み前にファイルサイズを O(1) で確認し、20 MB を超えていたら `jp-harness-metrics.1.jsonl` に rename して新しい active ファイルを開始する。保持世代は 1 のみ（前回の `.1.jsonl` があれば上書き）で、総ディスク使用量は最大でも約 `2 * max_bytes = 40 MB` に収束する。
+- **`metrics.archive_path()` helper**: active file から archive パスを導出する純関数（`jp-harness-metrics.jsonl` → `jp-harness-metrics.1.jsonl`）。
+- **`stats._read_entries()` が archive → active の順に連結読み込み**。ローテーション後も `codex-jp-stats show` / `overhead` は全履歴を参照する。
+
+### Notes
+- pytest は 90 件（+3）全通過。新規は rotation 発火・archive 上書き（世代 1 のみ）・stats が両方を読むことの検証。
+- ルーリングは fail-silent。stat() 失敗や rename 失敗でも tool 応答は継続する。
+- `max_bytes` は `record()` の引数で上書き可能（テスト用の tiny 値 / 将来の設定拡張）。
+
 ## [0.2.9] - 2026-04-20
 
 `finalize` 呼び出しの実測機構を追加する minor リリース。これまで `ARCHITECTURE.md` で「トークン消費 +30〜50%」と設計時見積もりを掲載していたが、実測に基づく数字に置き換えるための計測基盤を先に整備した。既存運用への破壊的変更はなく、メトリクス書き込みに失敗しても `finalize` 自体は継続する（fail-silent）。

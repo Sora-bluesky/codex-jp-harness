@@ -160,6 +160,81 @@ def test_cmd_tail_prints_last_entries(
     assert json.loads(out[-1])["draft_chars"] == 4
 
 
+def test_rotation_moves_file_when_size_exceeds_threshold(tmp_path: Path) -> None:
+    target = tmp_path / "m.jsonl"
+    # Seed with a file just over a tiny threshold.
+    target.write_text("x" * 200 + "\n", encoding="utf-8")
+    metrics.record(
+        draft="これで記録します",
+        violations_count=0,
+        severity_counts={},
+        response={"ok": True},
+        elapsed_ms=0.5,
+        path=target,
+        max_bytes=100,  # tiny threshold: existing file (>100 B) should rotate first
+    )
+    archive = metrics.archive_path(target)
+    assert archive.exists(), "active file should be rotated to archive"
+    # Active file now holds only the new entry (one line).
+    assert len(target.read_text(encoding="utf-8").splitlines()) == 1
+    # Archive holds the pre-rotation seed content.
+    assert "x" * 200 in archive.read_text(encoding="utf-8")
+
+
+def test_rotation_keeps_only_one_archive_generation(tmp_path: Path) -> None:
+    target = tmp_path / "m.jsonl"
+    archive = metrics.archive_path(target)
+    archive.write_text("stale archive data\n", encoding="utf-8")
+    target.write_text("y" * 200 + "\n", encoding="utf-8")
+    metrics.record(
+        draft="テスト",
+        violations_count=0,
+        severity_counts={},
+        response={"ok": True},
+        elapsed_ms=0.5,
+        path=target,
+        max_bytes=100,
+    )
+    # The stale archive was overwritten by the freshly rotated active file,
+    # not kept alongside it — one generation only.
+    assert "y" * 200 in archive.read_text(encoding="utf-8")
+    assert "stale archive data" not in archive.read_text(encoding="utf-8")
+
+
+def test_stats_reads_archive_and_active(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """show / tail should include rotated archive entries, not just the active file."""
+    target = tmp_path / "state" / "jp-harness-metrics.jsonl"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    archive = metrics.archive_path(target)
+    # archive: 3 older entries
+    with archive.open("w", encoding="utf-8") as f:
+        for i in range(3):
+            f.write(json.dumps({
+                "ts": f"2026-04-19T10:00:{i:02d}Z", "draft_chars": 10 + i,
+                "violations_count": 0, "severity_counts": {},
+                "elapsed_ms": 0.1, "ok": True, "response_bytes": 0,
+                "schema_version": "1", "draft_bytes": 0,
+            }) + "\n")
+    # active: 2 newer entries
+    with target.open("w", encoding="utf-8") as f:
+        for i in range(2):
+            f.write(json.dumps({
+                "ts": f"2026-04-20T10:00:{i:02d}Z", "draft_chars": 100 + i,
+                "violations_count": 0, "severity_counts": {},
+                "elapsed_ms": 0.1, "ok": True, "response_bytes": 0,
+                "schema_version": "1", "draft_bytes": 0,
+            }) + "\n")
+
+    monkeypatch.setattr(stats, "metrics_path", lambda: target)
+    rc = stats.cmd_show(argparse.Namespace())
+    out = capsys.readouterr().out
+    assert rc == 0
+    # 3 archive + 2 active = 5
+    assert "total calls:  5" in out
+
+
 def test_cmd_show_empty_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

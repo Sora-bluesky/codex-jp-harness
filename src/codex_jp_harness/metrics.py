@@ -20,6 +20,11 @@ from typing import Any
 
 SCHEMA_VERSION = "1"
 
+# Rotate to <name>.1.jsonl once the active file exceeds this many bytes.
+# 20 MB holds ~80k entries at ~250 B each — long enough for monthly
+# aggregates and short enough to keep `codex-jp-stats show` fast.
+DEFAULT_MAX_BYTES = 20 * 1024 * 1024
+
 
 def _codex_home() -> Path:
     home = os.environ.get("CODEX_HOME")
@@ -33,6 +38,23 @@ def metrics_path() -> Path:
     return _codex_home() / "state" / "jp-harness-metrics.jsonl"
 
 
+def archive_path(active: Path) -> Path:
+    """Return the 1-generation archive path for the given active file."""
+    return active.with_name(active.stem + ".1" + active.suffix)
+
+
+def _maybe_rotate(target: Path, max_bytes: int) -> None:
+    """Rotate target to <name>.1.jsonl if it exceeds max_bytes. O(1)."""
+    try:
+        if target.exists() and target.stat().st_size >= max_bytes:
+            archive = archive_path(target)
+            if archive.exists():
+                archive.unlink()
+            target.rename(archive)
+    except Exception:
+        return
+
+
 def record(
     *,
     draft: str,
@@ -41,11 +63,19 @@ def record(
     response: dict[str, Any],
     elapsed_ms: float,
     path: Path | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> None:
-    """Append one metric line. Swallows all I/O errors."""
+    """Append one metric line. Swallows all I/O errors.
+
+    The active file is rotated to ``<name>.1.jsonl`` when it first reaches
+    ``max_bytes`` (default 20 MB). Only one archive generation is kept;
+    prior archives are removed on rotation so total disk usage is bounded
+    at roughly ``2 * max_bytes``.
+    """
     try:
         target = path if path is not None else metrics_path()
         target.parent.mkdir(parents=True, exist_ok=True)
+        _maybe_rotate(target, max_bytes)
         draft_bytes = len(draft.encode("utf-8"))
         response_bytes = len(json.dumps(response, ensure_ascii=False).encode("utf-8"))
         entry = {

@@ -24,6 +24,8 @@ codex-jp-stats tail 20            # 末尾 20 行を生 JSON で表示
 
 `overhead` は「draft が tool 引数と最終メッセージで 2 回 output される」前提で、retry 回数から `avg output-factor = retry_rate + 2.0` を出力する。月次でこの値を記録すると、トークンコスト増分のトレンドが追える。
 
+**ローテーション**: active file が 20 MB を超えると自動で `jp-harness-metrics.1.jsonl` に退避され、新しい active が始まる。保持世代は 1 のみなので総使用量は約 40 MB で頭打ち。`codex-jp-stats` は archive と active を連結して読むため、ローテーションで履歴が失われることはない（古い archive は次回ローテーション時に上書きされる点のみ注意）。
+
 ### .jp-lint-violations.jsonl
 
 `~/.codex/.jp-lint-violations.jsonl`（呼び忘れ検知時に追記）:
