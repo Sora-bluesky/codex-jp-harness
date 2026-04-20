@@ -4,7 +4,7 @@
 
 ## このリポジトリについて
 
-`codex-jp-harness` は、OpenAI Codex CLI の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。OpenAI が Codex CLI に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
+`codex-jp-harness` は、OpenAI Codex（CLI / App 両対応）の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。Codex CLI と Codex App は同じ Rust バイナリを共有し、`~/.codex/` 配下の設定を同じ場所から読むため、本ハーネスは両 surface に同時反映される。OpenAI が Codex 本体に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
 
 ## 技術スタック
 
@@ -63,7 +63,7 @@
 
 OpenAI が以下のいずれかを公式実装した時点で、このリポは archive する:
 
-- Codex CLI 本体での日本語 register 切替
+- Codex 本体（CLI / App 共通）での日本語 register 切替
 - Pre-response hook の公式機構
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）
 

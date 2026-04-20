@@ -5,13 +5,13 @@
 - macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
 - Python 3.11 以上
 - [uv](https://github.com/astral-sh/uv)（推奨）または pip
-- Codex CLI がインストール済み (`~/.codex/` が存在する)
+- Codex CLI または Codex App がインストール済み（`~/.codex/` が存在する）
 - `git` が使えること
-- （パターン A で自動化するなら）ログイン済みの Codex CLI
+- （パターン A で自動化するなら）ログイン済みの Codex（CLI / App どちらでも可）
 
 ## パターン A: 超簡易インストール（Codex に任せる）
 
-手動コマンドを避けたい人はこちらが速い。Codex CLI に下記のプロンプトをそのまま貼り付けると、Codex が自律的に `git clone` → `uv sync` → `install.ps1` → 動作確認までを実行してくれる。
+手動コマンドを避けたい人はこちらが速い。Codex（CLI / App）に下記のプロンプトをそのまま貼り付けると、Codex が自律的に `git clone` → `uv sync` → `install.ps1` → 動作確認までを実行してくれる。
 
 ````
 次のリポジトリを自分のマシンにインストールしてほしい:
@@ -27,13 +27,13 @@ https://github.com/Sora-bluesky/codex-jp-harness
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
    （config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う）
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
-5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
+5. 完了したら、Codex（CLI / App）の再起動が必要であることを私に伝える
 
 各手順の結果を簡潔に報告しながら進めてよい。
 破壊的な操作が必要になった時だけ確認して。それ以外は自律的に進めてよい。
 ````
 
-完了メッセージが出たら Codex CLI を再起動し、下の「動作確認」セクションで挙動を確かめる。
+完了メッセージが出たら Codex（CLI / App）を再起動し、下の「動作確認」セクションで挙動を確かめる。
 
 ## パターン B: 手動インストール
 

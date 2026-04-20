@@ -1,21 +1,23 @@
 # codex-jp-harness
 
-Codex CLI の日本語出力を強制的に品質担保するための MCP 検品ゲート + Stop / SessionStart hook ハーネス。
+Codex が日本語で書く報告・ドキュメント・記事を、最終応答の直前で自動検品するための Python パッケージです。Codex の返答を間で読む MCP サーバー（`finalize` ツール）を主体とし、呼び忘れを拾う 2 種類のフックで補完します。Codex CLI / Codex App の両方で動きます。
+
+> ℹ️ **対応範囲**: 本ハーネスは **Codex CLI（`openai/codex` の Rust バイナリ）と Codex App（macOS / Windows のデスクトップ版）の両方**に適用されます。両者は内部的に同じ `codex` バイナリを共有し、`~/.codex/config.toml` / `~/.codex/AGENTS.md` / `~/.codex/hooks.json` を同じ場所から読むため、本ハーネスのインストールは両方の利用形態に同時に反映されます（dogfooding は Codex App で実施）。
 
 📝 **設計の経緯・実測データ（32→0 違反）の解説記事**: [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/codex-jp-harness-milestone)
 
-> ⚠️ **本ツールは暫定対策です**。OpenAI が Codex CLI に日本語自然化を公式実装するまでの繋ぎとして設計されています。公式対応が出揃った時点でこのリポジトリは archive されます。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照してください。
+> ⚠️ **本ツールは暫定対策です**。OpenAI が Codex 本体に日本語自然化を公式実装するまでの繋ぎとして設計されています。公式対応が出揃った時点でこのリポジトリは archive されます。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照してください。
 
 ## 1. なぜ存在するのか
 
-Codex CLI の日本語出力には、日本語として読みづらい特徴が頻発します:
+Codex の日本語出力には、日本語として読みづらい特徴が頻発します:
 
 - 英語語順をそのまま直訳した文
 - 禁止すべき英語比喩（`slice`, `parity`, `fail-close` 等）が助詞でそのまま混入
 - ファイル名と一般語がバッククォートなしで混在
 - 1 文に英語識別子が 7 個以上詰め込まれるケース
 
-Codex CLI には出力前の postprocess / pre-response hook が存在しないため、ルール（`AGENTS.md`）だけでは違反が混入し続けます。本ハーネスは **MCP サーバーを「検品係」として間に噛ませ**、Codex が最終応答を出す直前に必ず通るゲートとして機能します。加えて Codex 0.120.0 以降の Stop / SessionStart hook で**呼び忘れを次セッションで再教育**する後方検知ループを持ちます。
+Codex には出力前のフック（postprocess、つまり最終応答の直前に文字列を書き換える機構）が公式には存在しないため、ルール（`AGENTS.md`）だけでは違反が混入し続けます。本ハーネスは **MCP サーバーを「検品係」として間に挟み**、Codex が最終応答を出す直前に必ず通るゲートとして機能します。加えて Codex 0.120.0 以降の Stop / SessionStart フックで**呼び忘れを次セッションで再教育**する後方検知ループを持ちます（CLI / App どちらでも同じフックが動きます）。
 
 ### 主な機能
 
@@ -49,7 +51,7 @@ Stop hook:         transcript に finalize が出ていなければ state に記
 SessionStart hook: 次回起動時に state を読み、再教育プロンプトを注入
 ```
 
-この二層構成で、**同一ターン内自動修正（95%+）+ 翌セッションでの再教育（残り数%）** をカバーします。
+この二層構成で、**同一ターン内での自動修正（95%+）と、翌セッションでの再教育（残り数%）** をカバーします。
 
 - 全体像（スイスチーズモデル）: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - hook 詳細仕様と state スキーマ: [`docs/HOOKS.md`](docs/HOOKS.md)
@@ -60,12 +62,12 @@ SessionStart hook: 次回起動時に state を読み、再教育プロンプト
 
 - macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
 - Python 3.11+
-- Codex CLI（`~/.codex/` が存在すること）。hooks を使う場合は **0.120.0 以上**
+- Codex CLI または Codex App がインストール済み（`~/.codex/` が存在すること）。hooks を使う場合は **Codex 0.120.0 以上**
 - [uv](https://github.com/astral-sh/uv)（推奨）または pip
 
 ### パターン A: 超簡易インストール（Codex に任せる）
 
-下記のプロンプトを Codex CLI にそのまま貼り付けるだけで、Codex が自律的に進めます。
+下記のプロンプトを Codex（CLI / App どちらでも）にそのまま貼り付けるだけで、Codex が自律的に進めます。
 
 ```
 次のリポジトリを自分のマシンにインストールしてほしい:
@@ -82,7 +84,7 @@ https://github.com/Sora-bluesky/codex-jp-harness
    (Codex config.toml への MCP 登録、AGENTS.md への品質ゲート規約追記、
     jp-harness-tune skill の ~/.codex/skills/ への配置を一括で行う)
 4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
-5. 完了したら、Codex CLI の再起動が必要であることを私に伝える
+5. 完了したら、Codex（CLI または App）の再起動が必要であることを私に伝える
 
 各手順の結果を簡潔に報告しながら進めてよい。
 破壊的な操作が必要になった時だけ確認して。それ以外は自律的に進めてよい。
@@ -122,7 +124,7 @@ bash scripts/install.sh --append-agents-rule --enable-hooks
 pwsh scripts\install.ps1 -AppendAgentsRule -EnableHooks
 ```
 
-これで `~/.codex/hooks.json` が生成され、`config.toml` に `codex_hooks = true` が追記されます。Codex CLI 0.120.0 未満では警告が出て hooks 設定はスキップされます（他のインストール処理は継続）。詳細と仕様は [`docs/HOOKS.md`](docs/HOOKS.md) を参照。
+これで `~/.codex/hooks.json` が生成され、`config.toml` に `codex_hooks = true` が追記されます。Codex 0.120.0 未満では警告が出て hooks 設定はスキップされます（他のインストール処理は継続）。詳細と仕様は [`docs/HOOKS.md`](docs/HOOKS.md) を参照。
 
 ### インストールで変更されるユーザー環境
 
@@ -140,7 +142,7 @@ pwsh scripts\install.ps1 -AppendAgentsRule -EnableHooks
         └── SKILL.md
 ```
 
-どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。アンインストーラーで `config.toml` から関連エントリを削除できます。
+どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。`scripts/uninstall.ps1` / `scripts/uninstall.sh` で `config.toml` から `[mcp_servers.jp_lint]` セクションを削除できます（`AGENTS.md` は手動削除）。
 
 ### クローン後のリポジトリ構造
 
@@ -174,7 +176,7 @@ codex-jp-harness/
 
 ## 4. 運用とチューニング
 
-### severity 三段階の意味
+### severity（重要度）の三段階
 
 各違反には severity が付与される。`finalize` は **ERROR が 0 件なら `ok:true`** を返す。
 
@@ -237,7 +239,7 @@ codex-jp-tune remove foobar
 
 ### Codex Skill `$jp-harness-tune`
 
-`install.ps1` / `install.sh` は `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。Codex CLI の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex CLI のスキルは `/` ではなく `$` sigil で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
+`install.ps1` / `install.sh` は `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。Codex（CLI / App）の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex のスキルは `/` ではなく `$` 記号で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
 
 **opt-out**: skill 配置が不要なら `install.ps1 -SkipSkill` / `install.sh --skip-skill` を指定してください。
 
@@ -252,12 +254,19 @@ codex-jp-tune remove foobar
 
 ### 運用監視
 
-月 1 回、以下の指標を確認:
-- finalize 呼び出し回数
-- retry 発生率（> 30% なら禁止語リストの見直しサイン）
-- 違反種別の頻度分布
-- 呼び忘れ率（> 5% なら `AGENTS.md` の強化サイン）
-- （hooks 有効時）`~/.codex/state/jp-harness.jsonl` の末尾エントリ
+v0.2.9 以降、`finalize` 呼び出しごとに `~/.codex/state/jp-harness-metrics.jsonl` に 1 行ずつ記録されます（20 MB を超えると 1 世代のみ自動退避、合計約 40 MB で頭打ち）。付属の `codex-jp-stats` CLI で集計できます:
+
+```bash
+codex-jp-stats show                       # 呼び出し数・ok 率・draft 文字数 / elapsed ms の分布
+codex-jp-stats overhead --window 30       # 同一ターン内の retry 率とトークン overhead 推定
+codex-jp-stats tail 20                    # 末尾 20 件を生 JSON で表示
+```
+
+月 1 回、以下の指標を確認します:
+- finalize 呼び出し回数（`show` の `total calls`）
+- retry 発生率（`overhead` の `avg retries per turn`。0.5 を超えたら禁止語リストの見直しサイン）
+- 違反種別の分布（`show` の `violations` 統計）
+- 呼び忘れ率（`~/.codex/state/jp-harness.jsonl` の末尾エントリ数。hooks 有効時のみ）
 
 詳細は [`docs/OPERATIONS.md`](docs/OPERATIONS.md) を参照。
 
@@ -265,8 +274,8 @@ codex-jp-tune remove foobar
 
 ### アンインストール（公式対応時）
 
-OpenAI が Codex CLI に以下のいずれかを公式実装した時点で、本ハーネスは役目を終えます:
-- Codex CLI 本体が日本語自然化を標準装備
+OpenAI が Codex（CLI / App）に以下のいずれかを公式実装した時点で、本ハーネスは役目を終えます:
+- Codex 本体が日本語自然化を標準装備
 - Pre-response hook（出力前書き換え）の公式機構
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）の実装
 

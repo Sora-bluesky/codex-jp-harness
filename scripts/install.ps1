@@ -35,7 +35,7 @@ if (-not (Test-Path $serverPath)) {
     exit 1
 }
 if (-not (Test-Path $codexDir)) {
-    Write-Error "Codex directory not found at $codexDir. Is Codex CLI installed?"
+    Write-Error "Codex directory not found at $codexDir. Is Codex CLI or Codex App installed?"
     exit 1
 }
 if (-not (Test-Path $configPath)) {
@@ -154,7 +154,7 @@ if ($EnableHooks) {
     } catch {}
 
     if (-not $codexVersionOk) {
-        Write-Warning "Codex CLI 0.120.0 or later is required for hooks. Skipping hooks setup."
+        Write-Warning "Codex 0.120.0 or later (CLI or App) is required for hooks. Skipping hooks setup."
     } elseif (-not (Test-Path $stopHookPath) -or -not (Test-Path $startHookPath) -or -not (Test-Path $hooksTemplate)) {
         Write-Warning "Hooks source files missing in repo. Skipping hooks setup."
     } else {
@@ -204,7 +204,7 @@ if ($EnableHooks) {
 
 Write-Host ""
 Write-Host "[codex-jp-harness] Installation complete." -ForegroundColor Green
-Write-Host "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
+Write-Host "[codex-jp-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
 if ($EnableHooks) {
-    Write-Host "[codex-jp-harness] Hooks (experimental) require Codex CLI 0.120.0+. See docs/HOOKS.md for details." -ForegroundColor Green
+    Write-Host "[codex-jp-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details." -ForegroundColor Green
 }

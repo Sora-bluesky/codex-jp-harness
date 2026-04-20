@@ -42,7 +42,7 @@ D. 最大 400 文字の再教育プロンプトを stdout 経由で Codex 側に
 ```mermaid
 flowchart TB
     subgraph User["User 層"]
-        U[Codex CLI 入出力]
+        U[Codex CLI / App 入出力]
     end
     subgraph Runtime["Codex Runtime 層"]
         R1[Codex 本体]
@@ -70,7 +70,7 @@ flowchart TB
 
 | レイヤー | コンポーネント | 責務 | 依存先 |
 |---|---|---|---|
-| User | Codex CLI 入出力 | 自然言語での対話 | - |
+| User | Codex CLI / App 入出力 | 自然言語での対話 | - |
 | Runtime | Codex 本体 / AGENTS.md / hooks | ルール読み込み、tool 呼び出し、hook 起動 | User 層 |
 | Harness | `server.py` / `rules.py` / hook scripts | lint + 記録 + 再教育 | Runtime 層 |
 | Persistence | `banned_terms.yaml` / `state/*.jsonl` / `stats.json` | 定義と履歴の保存 | - |
@@ -155,7 +155,7 @@ hook の性能計測。Stop < 50ms / SessionStart < 100ms（mean）を目標に 
 ## 公式対応との関係
 
 本ハーネスは暫定対策。以下の公式機能が揃った時点で不要になる:
-- Codex CLI 本体での日本語自然化
+- Codex 本体（CLI / App 共通）での日本語自然化
 - Pre-response hook 機構（出力前書き換え）
 - `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）
 
