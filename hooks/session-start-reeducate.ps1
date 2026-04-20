@@ -12,7 +12,10 @@
 $ErrorActionPreference = 'Continue'
 $maxChars = 400
 
-# Force UTF-8 stdout so non-ASCII Japanese text is not mangled by the host codepage.
+# Force UTF-8 on stdin / stdout / stderr. Without this, on Japanese Windows the
+# default console codepage (cp932) re-decodes the UTF-8 JSON payload that Codex
+# pipes in, so Japanese characters (and the structure itself) break.
+try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false) } catch {}
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
 try { $OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
 
