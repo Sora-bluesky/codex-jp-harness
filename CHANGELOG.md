@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-04-21
+
+v0.2.9 で仕込んだ実測機構が十分な統計量（n=91 バースト / 192 calls）を溜めたため、`docs/ARCHITECTURE.md` の「トークン消費の増分」文言を実測値に差し替える patch。
+
+### Changed
+- **`docs/ARCHITECTURE.md` のトレードオフ節に実測値を反映**。従来の「実測誘導」文言を、`codex-jp-stats overhead --window 30` による n=91 時点の実測（avg output-factor = 3.11× baseline、+211% output tokens over no-finalize baseline）に置換。分布特性（75% のターンが 1-2 call で完結、重度 retry 5+ call は 8%）も併記した。実測値は運用とともに変動するため、随時再計測が推奨される旨を明記。
+
+### Notes
+- コード変更なし。90 件の pytest と ruff check は全通過。
+- 測定期間: 2026-04-20 夜に metrics をリセットして以降、約 1 日の運用で n=91 バースト蓄積。前半（n=19, 26）では 5-6 call バーストの比率が 20% 前後だったが、n=91 では 8% まで下がり healthier な分布に収束した。
+- 既存の「+30〜50%」という v0.2.5 以前の設計時見積もりから、実測ベースで +211% へ更新。設計時見積もりは draft を tool 引数と最終メッセージの 2 箇所で出力するモデルを考慮していなかったための過小推定。
+
 ## [0.2.15] - 2026-04-20
 
 README の「Codex Skill `$jp-harness-tune`」と「典型的な運用フロー」節が読みにくいというフィードバックを受けた、わかりやすさの patch。
