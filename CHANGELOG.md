@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-04-20
+
+ドキュメント描画の patch リリース。v0.2.6 で `docs/assets/` に配置したアーキテクチャ図 4 枚が拡張子 `.png` で保存されていたが中身は SVG XML だったため、GitHub が `image/png` として解釈してレンダリングに失敗していた。拡張子を `.svg` に統一し、Markdown の `![...](...)` 参照も併せて更新した。
+
+### Fixed
+- **`docs/assets/arch-0[1-4]-*` を `.png` から `.svg` に改名**。Figma MCP でエクスポートした図は SVG だったため、拡張子の方を実体に合わせた。`docs/ARCHITECTURE.md` の 4 箇所の参照も更新。
+- **`.gitattributes` に `*.svg text eol=lf` を追加**。SVG は XML テキストであり、CRLF 変換で diff が膨らむのを防ぐ。
+
+### Notes
+- コード変更なし。既存 81 件の pytest は全通過。
+- v0.2.6 を既にインストール済みの利用者は再インストール不要（hooks 関連バイナリの変更はない）。リポジトリを pull し直すだけで画像が表示されるようになる。
+
 ## [0.2.6] - 2026-04-20
 
 Codex 0.120.0+ の Stop / SessionStart hook を opt-in で組み込む minor リリース。MCP `finalize` ゲートの呼び忘れを次セッション起動時に再教育プロンプトで補完する後方検知ループを追加した。MCP 本体と既存運用への破壊的変更はなく、`--enable-hooks` 指定時のみ hooks が配置される。
@@ -18,7 +30,7 @@ Codex 0.120.0+ の Stop / SessionStart hook を opt-in で組み込む minor リ
 - **`config/hooks.example.json`**: `~/.codex/hooks.json` のテンプレート。install script が `{{STOP_COMMAND}}` / `{{SESSION_START_COMMAND}}` を絶対パスで置換して書き出す。
 - **`scripts/install.{ps1,sh}` に `--enable-hooks` / `-EnableHooks` フラグ**: opt-in で hook 配置を有効化する。Codex CLI 0.120.0 未満では警告を出してスキップ、他のインストール処理は継続。`--force-hooks` / `-ForceHooks` で既存 `hooks.json` を上書き。
 - **`docs/HOOKS.md`**: hook 仕様・state スキーマ・性能目標・プライバシー方針・トラブルシューティングをまとめたドキュメント。
-- **`docs/assets/arch-0[1-4]-*.png`**: ARCHITECTURE に埋め込む技術図 4 枚（スイスチーズ層構造 / データフロー / レイヤー責務 / コンテキスト失効）。
+- **`docs/assets/arch-0[1-4]-*.svg`**: ARCHITECTURE に埋め込む技術図 4 枚（スイスチーズ層構造 / データフロー / レイヤー責務 / コンテキスト失効）。
 
 ### Changed
 - **`docs/ARCHITECTURE.md` を全面改訂**。ASCII 図に加えて PNG 図を埋め込み、MCP ゲート + Stop / SessionStart hook の二層構成を説明する節を追加した。

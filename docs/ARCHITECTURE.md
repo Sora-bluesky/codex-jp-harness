@@ -6,7 +6,7 @@
 
 品質担保を 4 層（規約 / MCP ゲート / hook 後方検知 / 運用監視）で重ねる「スイスチーズ」配置。各層の穴（漏れ）がずれているため、1 層抜けても他の層で捕捉される。
 
-![arch-01: Swiss-cheese layered defense](assets/arch-01-swiss-cheese.png)
+![arch-01: Swiss-cheese layered defense](assets/arch-01-swiss-cheese.svg)
 
 | 層 | 強制力 | 失敗ケース | 次層でカバー |
 |---|---|---|---|
@@ -19,7 +19,7 @@
 
 Codex が日本語応答を返すまでの MCP 往復と、Stop → SessionStart の後方検知ループを 1 つの図にまとめたもの。
 
-![arch-02: End-to-end data flow](assets/arch-02-data-flow.png)
+![arch-02: End-to-end data flow](assets/arch-02-data-flow.svg)
 
 **同一ターン内の自動修正（95%+）**:
 1. ユーザー入力を Codex が受領
@@ -39,7 +39,7 @@ D. 最大 400 文字の再教育プロンプトを stdout 経由で Codex 側に
 
 コンポーネントの責務を 4 層（ユーザー層 / Codex ランタイム / ハーネス / 永続化）に切り分けると、テスト容易性とアンインストール容易性が同時に得られる。
 
-![arch-03: Layer responsibility](assets/arch-03-layer-responsibility.png)
+![arch-03: Layer responsibility](assets/arch-03-layer-responsibility.svg)
 
 | レイヤー | コンポーネント | 責務 | 依存先 |
 |---|---|---|---|
@@ -57,7 +57,7 @@ D. 最大 400 文字の再教育プロンプトを stdout 経由で Codex 側に
 
 Stop hook が記録する state エントリは **24 時間の expiry** と `consumed` フラグで管理する。これにより古いエントリが永遠に再教育プロンプトとして再注入されることを防ぐ。
 
-![arch-04: Context expiry lifecycle](assets/arch-04-context-expiry.png)
+![arch-04: Context expiry lifecycle](assets/arch-04-context-expiry.svg)
 
 | 状態遷移 | トリガー | 挙動 |
 |---|---|---|

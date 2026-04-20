@@ -21,3 +21,6 @@
 *.jpeg binary
 *.gif binary
 *.ico binary
+
+# SVG is XML text; keep LF to avoid CRLF bloat in diffs.
+*.svg text eol=lf
