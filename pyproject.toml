@@ -1,6 +1,6 @@
 [project]
 name = "codex-jp-harness"
-version = "0.2.12"
+version = "0.2.13"
 description = "Codex CLI Japanese output quality gate via MCP finalize server"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,6 +33,18 @@ codex-jp-stats = "codex_jp_harness.stats:main"
 Homepage = "https://github.com/sora-bluesky/codex-jp-harness"
 Repository = "https://github.com/sora-bluesky/codex-jp-harness"
 Issues = "https://github.com/sora-bluesky/codex-jp-harness/issues"
+
+[dependency-groups]
+# PEP 735 dependency group. `uv sync` installs this automatically by default,
+# so contributors get pytest / ruff / pytest-cov without remembering an
+# `--extra dev` flag. Install `pip install -e '.[dev]'` still works because
+# the [project.optional-dependencies] mirror below keeps the extras wire
+# compatible for pip users who don't read uv docs.
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
 
 [project.optional-dependencies]
 dev = [
