@@ -14,3 +14,10 @@
 
 # Markdown: LF (universal)
 *.md text eol=lf
+
+# Binary assets must not be line-ending normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
