@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-04-20
+
+Codex App 対応の明示化と、README の日英混在レビューに基づく読みやすさ patch。コード挙動に変更なし。
+
+### Changed
+- **ドキュメント全面で「Codex CLI」を「Codex（CLI / App）」に整理**。README、`docs/INSTALL.md`、`docs/HOOKS.md`、`docs/ARCHITECTURE.md`、`docs/DEPRECATION.md`、`config/agents_rule.md`、`AGENTS.md`、`skills/jp-harness-tune/SKILL.md`、install/uninstall スクリプトのランタイム出力、`src/*.py` の docstring、issue template まで。Codex App のデスクトップ版は同じ Rust バイナリを使い `~/.codex/` を共有するため、本ハーネスは両 surface で動作する旨を冒頭 box で明示した。
+- **README を日英混在観点でメタ認知レビュー（3 ラウンド）**。以下を適用:
+  - 冒頭 1 文を初見読者向けに噛み砕いた説明に置換（「MCP 検品ゲート + Stop / SessionStart hook ハーネス」の立て続け用語を回避）
+  - 「両方の surface に反映」→「両方の利用形態に反映」
+  - 「間に噛ませ」→「間に挟み」
+  - 「95%+ + 残り数%」の `+` を「と」で接続
+  - 見出し「severity 三段階の意味」→「severity（重要度）の三段階」
+  - 「`$` sigil で呼び出します」→「`$` 記号で呼び出します」
+  - 「アンインストーラーで関連エントリを削除」→「`[mcp_servers.jp_lint]` セクションを削除（`AGENTS.md` は手動削除）」
+  - 「運用監視」節を v0.2.9 以降の `codex-jp-stats` CLI を前提に書き直し、`show` / `overhead` / `tail` の実行例を掲載。retry 率 > 0.5 を見直しサインとして明示
+
+### Notes
+- コード変更なし。90 件の pytest と ruff check は全通過。
+- ユーザー向け破壊的変更なし（install / uninstall の動作不変、スクリプトの stdout 文言のみ変更）。
+- 誤記修正に近い patch のため、既存利用者に追加作業は不要。`git pull` のみで反映される。
+
 ## [0.2.13] - 2026-04-20
 
 開発者の `uv sync` 一発で pytest / ruff / pytest-cov が揃うよう、dev 依存を PEP 735 の `[dependency-groups]` 形式に追加する chore。従来の `[project.optional-dependencies]` も残しているため、pip 利用者の `pip install -e '.[dev]'` は引き続き動く。

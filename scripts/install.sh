@@ -54,7 +54,7 @@ START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
-  echo "[codex-jp-harness] Codex directory not found at $CODEX_DIR. Is Codex CLI installed?" >&2
+  echo "[codex-jp-harness] Codex directory not found at $CODEX_DIR. Is Codex CLI or Codex App installed?" >&2
   exit 1
 fi
 if [[ ! -f "$CONFIG_PATH" ]]; then
@@ -178,7 +178,7 @@ if [[ "$ENABLE_HOOKS" == "true" ]]; then
   fi
 
   if [[ "$codex_version_ok" != "true" ]]; then
-    echo "[codex-jp-harness] Codex CLI 0.120.0 or later is required for hooks. Skipping hooks setup." >&2
+    echo "[codex-jp-harness] Codex 0.120.0 or later (CLI or App) is required for hooks. Skipping hooks setup." >&2
   elif [[ ! -f "$STOP_HOOK_PATH" || ! -f "$START_HOOK_PATH" || ! -f "$HOOKS_TEMPLATE" ]]; then
     echo "[codex-jp-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
   else
@@ -230,7 +230,7 @@ fi
 
 echo ""
 echo "[codex-jp-harness] Installation complete."
-echo "[codex-jp-harness] Restart Codex CLI to activate the MCP server and the jp-harness-tune skill."
+echo "[codex-jp-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill."
 if [[ "$ENABLE_HOOKS" == "true" ]]; then
-  echo "[codex-jp-harness] Hooks (experimental) require Codex CLI 0.120.0+. See docs/HOOKS.md for details."
+  echo "[codex-jp-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details."
 fi

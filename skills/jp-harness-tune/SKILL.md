@@ -11,7 +11,7 @@ codex-jp-harness を運用していると「プロジェクト文脈では避け
 
 ## 呼び出し方
 
-Codex CLI の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択する。対象語がある場合は後続に自然文で記述する（例: `$jp-harness-tune slice を無効化したい`）。
+Codex（CLI / App）の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択する。対象語がある場合は後続に自然文で記述する（例: `$jp-harness-tune slice を無効化したい`）。
 
 ## Step 1: 現状の把握
 
@@ -61,7 +61,7 @@ codex-jp-tune remove <term>
 
 `codex-jp-tune show` を再度走らせ、操作前後の差分（件数 / 対象語の severity）を簡潔に示す。
 
-**Codex CLI の再起動は不要**。MCP サーバーはリクエストごとに override を読み直すため、次の `finalize` 呼び出しから反映される。
+**Codex の再起動は不要**（CLI / App どちらでも）。MCP サーバーはリクエストごとに override を読み直すため、次の `finalize` 呼び出しから反映される。
 
 ## Step 6: ロールバック方法の案内
 
@@ -75,5 +75,5 @@ codex-jp-tune remove <term>
 ## やらないこと
 
 - `config/banned_terms.yaml` 本体の編集（バンドル規則の変更は PR で行う）
-- Codex CLI 本体の再起動を促すこと（不要）
+- Codex 本体（CLI / App）の再起動を促すこと（不要）
 - 説明なしでの一括無効化（必ず Step 3 の判断支援を挟む）

@@ -1,4 +1,4 @@
-"""MCP server exposing the `finalize` tool for Codex CLI.
+"""MCP server exposing the `finalize` tool for Codex (CLI / App).
 
 Codex calls `mcp__jp_lint__finalize(draft)` before delivering a Japanese
 technical report. If violations are found, Codex is expected to rewrite

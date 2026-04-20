@@ -28,7 +28,7 @@ labels: bug
 - OS: (Windows 11 / macOS / Linux)
 - Python version: (`python --version`)
 - uv version: (`uv --version`)
-- Codex CLI version:
+- Codex version (CLI or App):
 - codex-jp-harness version: (commit hash or tag)
 
 ## ログ・スクリーンショット
