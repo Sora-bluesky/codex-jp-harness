@@ -304,3 +304,77 @@ def lint(text: str, cfg: RuleConfig) -> list[Violation]:
         + detect_too_many_identifiers(text, cfg)
         + detect_sentence_length(text, cfg)
     )
+
+
+_REPLACEMENT_MAX_CHARS = 30
+
+
+def extract_replacement(suggest: str) -> str | None:
+    """Pick the first comma-separated chunk of ``suggest`` as an auto-replacement.
+
+    ``banned_terms.yaml`` stores ``suggest`` as a free-form guidance string such
+    as ``"限定的な変更、今回の範囲"``. The first chunk before a Japanese or
+    ASCII comma is usually the primary replacement. Returns ``None`` when the
+    chunk is empty or looks too descriptive to substitute safely.
+    """
+    if not suggest:
+        return None
+    first = re.split(r"[、,]", suggest, maxsplit=1)[0].strip()
+    if not first:
+        return None
+    if len(first) > _REPLACEMENT_MAX_CHARS:
+        return None
+    return first
+
+
+def _replace_outside_code_spans(line: str, terms: dict[str, str]) -> str:
+    """Replace ``terms`` in ``line`` but not inside backtick spans or markdown link URLs."""
+    pattern = re.compile(r"(`[^`]*`|\[[^\]]*\]\([^)]*\))")
+    parts = pattern.split(line)
+    out: list[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            # Code span or markdown link — leave untouched.
+            out.append(part)
+            continue
+        for term, replacement in terms.items():
+            term_re = re.compile(
+                r"(?<![A-Za-z0-9_])" + re.escape(term) + r"(?![A-Za-z0-9_-])",
+                re.IGNORECASE,
+            )
+            part = term_re.sub(replacement, part)
+        out.append(part)
+    return "".join(out)
+
+
+def apply_auto_fix(draft: str, violations: list[Violation]) -> str:
+    """Return ``draft`` with each fixable banned-term violation replaced.
+
+    Only ``banned_term`` violations whose ``suggest`` has an extractable
+    replacement are applied. Text inside fenced code blocks, inline backtick
+    spans, or markdown-link URLs is preserved verbatim. Unknown rule types are
+    ignored — the server decides which violations to route through the fast
+    path before calling this.
+    """
+    terms_to_replace: dict[str, str] = {}
+    for v in violations:
+        if v.rule != "banned_term" or not v.term:
+            continue
+        replacement = extract_replacement(v.suggest)
+        if replacement and v.term not in terms_to_replace:
+            terms_to_replace[v.term] = replacement
+    if not terms_to_replace:
+        return draft
+
+    # Split by fenced code blocks; replacements happen only in non-code parts.
+    parts = re.split(r"(```.*?```)", draft, flags=re.DOTALL)
+    out: list[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            out.append(part)
+            continue
+        lines_out = [
+            _replace_outside_code_spans(line, terms_to_replace) for line in part.split("\n")
+        ]
+        out.append("\n".join(lines_out))
+    return "".join(out)

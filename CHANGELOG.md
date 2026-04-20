@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.17] - 2026-04-21
+
+v0.2.16 で実測反映した output-factor 3.11× を下げるための仕組み改善。`finalize` に **fast path**（server-side 自動修正）を追加し、違反がすべて決定的に置換可能な `banned_term` の場合は LLM rewrite を経由せず server が直接書き換えた draft を返す。既存クライアントは `fixed:true` を無視しても動作継続（後方互換）。
+
+### Added
+- **`rules.extract_replacement(suggest)`**: `banned_terms.yaml` の `suggest` フィールドから最初のカンマ区切りチャンクを置換語として取り出す純関数。30 文字を超える説明的文字列は拒否する。
+- **`rules.apply_auto_fix(draft, violations)`**: `banned_term` 違反の置換を `draft` に適用。fenced code block / inline backtick span / markdown link URL は保持する。
+- **`server.finalize()` の fast path**: すべての ERROR 違反が `banned_term` かつ置換語が得られる場合、自動修正後の再 lint で ERROR ゼロを確認してから `{"ok": True, "fixed": True, "rewritten": ..., "summary": ...}` を返す。再 lint で新規 ERROR が出たら従来の slow path にフォールバック。
+- **`metrics.record()` の `fixed` フィールド**: fast path 発火を記録する additive な boolean。既存 reader は欠損時 `False` として扱う。
+- **`codex-jp-stats show` の `fast-path:` 行**: fast path 発火率を表示（例: `fast-path: 12 (30.0% server-side auto-rewrite)`）。
+- **`config/agents_rule.md` に fast path 節**: `fixed:true` を受け取ったら `rewritten` をそのまま返す旨を追記。`~/.codex/AGENTS.md` にも install script 経由で反映される。
+
+### Changed
+- **`docs/ARCHITECTURE.md` のデータフロー節**に fast path / slow path の分岐を明記。fast path の目的が「retry のゼロ化によるトークン削減」であることを明文化。
+- **`docs/OPERATIONS.md`** に `codex-jp-stats show` の `fast-path` 指標の読み方を追記。
+
+### Notes
+- pytest 111 件（+21）全通過。新規テストは `test_rules.TestExtractReplacement` / `TestApplyAutoFix`、`test_server.TestFastPathGate` ほか。
+- 既存利用者への破壊的変更なし。`finalize` の応答スキーマは追加フィールドのみ。
+- 期待される効果: retry 率 1.11/turn → 0.3〜0.5/turn、output-factor 3.11× → 2.3〜2.5×。実運用 20〜30 ターン蓄積後に `codex-jp-stats overhead` で実測し、効果を確認する。
+- 反映手順: `git pull && uv sync`、Codex（CLI / App）再起動で MCP server が新コードを読み直す。
+
 ## [0.2.16] - 2026-04-21
 
 v0.2.9 で仕込んだ実測機構が十分な統計量（n=91 バースト / 192 calls）を溜めたため、`docs/ARCHITECTURE.md` の「トークン消費の増分」文言を実測値に差し替える patch。
