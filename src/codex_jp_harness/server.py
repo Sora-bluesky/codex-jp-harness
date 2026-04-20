@@ -7,12 +7,14 @@ and call again until `ok: true` is returned.
 
 from __future__ import annotations
 
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from codex_jp_harness import metrics
 from codex_jp_harness.rules import (
     Violation,
     lint,
@@ -48,23 +50,35 @@ def finalize(draft: str) -> dict[str, Any]:
         合格 (ERROR が 0 件): ``{"ok": True}``
         不合格: ``{"ok": False, "violations": [...], "summary": "..."}``
     """
+    started = time.perf_counter()
     cfg = load_rules(RULES_PATH, resolve_user_config_path())
     violations = lint(draft, cfg)
     error_violations = [v for v in violations if (v.severity or "ERROR") == "ERROR"]
+    severity_counts = Counter(v.severity or "ERROR" for v in violations)
     if not error_violations:
         if not violations:
-            return {"ok": True}
-        # Only WARNING/INFO remain — pass but surface advisories.
-        return {
-            "ok": True,
-            "advisories": [v.to_dict() for v in violations],
+            response: dict[str, Any] = {"ok": True}
+        else:
+            response = {
+                "ok": True,
+                "advisories": [v.to_dict() for v in violations],
+                "summary": _summarize(violations),
+            }
+    else:
+        response = {
+            "ok": False,
+            "violations": [v.to_dict() for v in violations],
             "summary": _summarize(violations),
         }
-    return {
-        "ok": False,
-        "violations": [v.to_dict() for v in violations],
-        "summary": _summarize(violations),
-    }
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    metrics.record(
+        draft=draft,
+        violations_count=len(violations),
+        severity_counts=dict(severity_counts),
+        response=response,
+        elapsed_ms=elapsed_ms,
+    )
+    return response
 
 
 def main() -> None:

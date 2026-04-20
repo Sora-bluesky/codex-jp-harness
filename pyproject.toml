@@ -1,6 +1,6 @@
 [project]
 name = "codex-jp-harness"
-version = "0.2.8"
+version = "0.2.9"
 description = "Codex CLI Japanese output quality gate via MCP finalize server"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 codex-jp-tune = "codex_jp_harness.tune:main"
+codex-jp-stats = "codex_jp_harness.stats:main"
 
 [project.urls]
 Homepage = "https://github.com/sora-bluesky/codex-jp-harness"

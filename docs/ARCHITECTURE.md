@@ -147,7 +147,7 @@ hook の性能計測。Stop < 50ms / SessionStart < 100ms（mean）を目標に 
 
 ## トレードオフ
 
-- **トークン消費 +30〜50%**: 品質担保とのトレードオフ。月 100 報告で +$0.50 程度で許容範囲
+- **トークン消費の増分**: v0.2.9 から `~/.codex/state/jp-harness-metrics.jsonl` に実測データを蓄積する。暫定見積もりは「draft が tool 引数と最終メッセージで 2 回出力される → retry 回数 + 2 倍の output トークン」。確定値は `codex-jp-stats overhead` で取得し、蓄積後に更新する
 - **形態素解析未採用**: 依存増・起動時間増を避けるためヒューリスティックで妥協。fugashi は将来拡張
 - **repo-local hook 非対応**（[Issue #17532](https://github.com/openai/codex/issues/17532)）: Codex 側のバグのためグローバル登録に限定
 - **再教育プロンプト 400 文字制限**: Codex の SessionStart stdout を消化するため短く固定。違反種別は上位 3 件のみ要約

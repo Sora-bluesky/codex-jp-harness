@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-04-20
+
+`finalize` 呼び出しの実測機構を追加する minor リリース。これまで `ARCHITECTURE.md` で「トークン消費 +30〜50%」と設計時見積もりを掲載していたが、実測に基づく数字に置き換えるための計測基盤を先に整備した。既存運用への破壊的変更はなく、メトリクス書き込みに失敗しても `finalize` 自体は継続する（fail-silent）。
+
+### Added
+- **`src/codex_jp_harness/metrics.py`**: 各 `finalize` 呼び出しを `$CODEX_HOME/state/jp-harness-metrics.jsonl` に 1 行ずつ追記するモジュール。スキーマは `ts / draft_chars / draft_bytes / violations_count / severity_counts / response_bytes / elapsed_ms / ok`。I/O 失敗は例外を握り潰す。
+- **`src/codex_jp_harness/stats.py` と `codex-jp-stats` CLI**: 蓄積した jsonl を集計する。
+  - `codex-jp-stats path`: jsonl のパスを表示
+  - `codex-jp-stats show`: 呼び出し数・ok 率・draft_chars / violations / elapsed の分布（mean / median / p90 / p99 / max）
+  - `codex-jp-stats overhead --window 30`: 連続呼び出しを同一ターンとみなし、retry 率と「avg output-factor (draft が tool 引数と最終メッセージで 2 回出力される → retry_rate + 2.0)」を表示
+  - `codex-jp-stats tail N`: 末尾 N 件を生 JSON で表示
+- **`pyproject.toml` の `[project.scripts]` に `codex-jp-stats` を登録**。`codex-jp-tune` と同じ枠で `uv sync` 後に即利用可能。
+
+### Changed
+- **`server.py` の `finalize()` に計測を組み込んだ**。violations 計算と response 整形を維持しつつ、`time.perf_counter()` で elapsed を測り、`metrics.record()` を呼ぶ。I/O が失敗しても tool 応答には影響しない。
+- **`docs/ARCHITECTURE.md` の「+30〜50%」を削除**。実測誘導の文言に置換し、v0.2.9 以降は `codex-jp-stats overhead` で取得する方針に変更。
+- **`docs/OPERATIONS.md` を更新**。旧 `stats.json` 記述を `jp-harness-metrics.jsonl` + `codex-jp-stats` フローに書き換えた。
+
+### Notes
+- pytest は 87 件（+6）全通過。新規は `tests/test_metrics.py`（record 動作・IO エラー握り潰し・show/overhead/tail コマンドの出力検証）。
+- 既存利用者は再インストール（`install.ps1` / `install.sh`）で `.venv` が更新され、`codex-jp-stats` が使えるようになる。再起動は不要（MCP サーバーだけは再起動で新コード反映）。
+- 蓄積データが一定量たまり次第、`ARCHITECTURE.md` に実測値を反映する（将来の patch リリース）。
+
 ## [0.2.8] - 2026-04-20
 
 ドキュメント描画の patch リリース。v0.2.7 まで `docs/assets/arch-03-layer-responsibility.svg` が `<b>` タグを vector path として描画しており、GitHub で「`<b>AGENTS.md 規約層</b>`」のようにリテラル文字列として表示されていた。Figma MCP が太字指定を HTML タグ文字列のままグリフ化したのが原因。該当図を Mermaid 図に置き換えた。
