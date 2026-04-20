@@ -23,10 +23,10 @@ import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from codex_jp_harness.metrics import metrics_path
+from codex_jp_harness.metrics import archive_path, metrics_path
 
 
-def _read_entries(path: Path) -> Iterator[dict]:
+def _iter_file(path: Path) -> Iterator[dict]:
     if not path.exists():
         return
     with path.open("r", encoding="utf-8") as f:
@@ -38,6 +38,17 @@ def _read_entries(path: Path) -> Iterator[dict]:
                 yield json.loads(line)
             except Exception:
                 continue
+
+
+def _read_entries(path: Path) -> Iterator[dict]:
+    """Yield entries from the archive (older) then the active file (newer).
+
+    Reading both preserves chronological order and avoids losing the rotated
+    history from ``codex-jp-stats show`` / ``overhead``.
+    """
+    archive = archive_path(path)
+    yield from _iter_file(archive)
+    yield from _iter_file(path)
 
 
 def _percentiles(values: list[float], ps: Iterable[float]) -> dict[str, float]:
