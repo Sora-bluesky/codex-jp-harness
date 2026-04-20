@@ -237,20 +237,44 @@ codex-jp-tune add foobar --suggest "foobar は日本語訳を使う" --severity 
 codex-jp-tune remove foobar
 ```
 
-### Codex Skill `$jp-harness-tune`
+### Codex Skill `$jp-harness-tune` — チューニング専用の対話スキル
 
-`install.ps1` / `install.sh` は `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。Codex（CLI / App）の入力欄で `$` を押してスキル一覧を開き、`$jp-harness-tune` を選択します（Codex のスキルは `/` ではなく `$` 記号で呼び出します）。スキルは判断支援（本当にルールを緩める必要があるか）を挟んでから `codex-jp-tune` を実行します。
+**役割**: ルールを変える前に「本当に必要か」をワンクッション挟むための相談相手。利用者が「このルール、自分のプロジェクトには合わない」と感じたときに呼び出します。
 
-**opt-out**: skill 配置が不要なら `install.ps1 -SkipSkill` / `install.sh --skip-skill` を指定してください。
+**呼び出し方**:
 
-再インストール時の挙動: 配置先に既存の `SKILL.md` があり、内容がバンドル版と一致していれば上書き（冪等）、カスタム編集して差分があれば上書きをスキップし stderr に警告を出します。
+Codex（CLI / App）の入力欄で `$` を押すとスキル一覧が開きます（Codex のスキルは `/` ではなく `$` で呼び出す仕様）。一覧から `$jp-harness-tune` を選び、続けて自然文で相談内容を書きます。
+
+```
+$jp-harness-tune  slice という語をこのリポでは許容したい
+```
+
+**スキルが行う 4 ステップ**:
+
+1. 現在の有効ルールを `codex-jp-tune show` で提示
+2. 緩める／追加する前に「本当に必要か」を問う（例: `slice` を外す前に「時間区間」で言い換えられないか）
+3. 合意が取れたら `codex-jp-tune` の該当サブコマンドを実行
+4. 変更後の差分と、元に戻す方法を案内
+
+**配置について**: `install.ps1` / `install.sh` が `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。スキル配置が不要な場合は `-SkipSkill` / `--skip-skill` で opt-out。再インストール時、配置先の `SKILL.md` がバンドル版と一致していれば上書き（冪等）、差分があれば上書きをスキップして stderr に警告を出します。
 
 ### 典型的な運用フロー
 
-1. Codex が `finalize` で `ok:false` を返したら、まずはそのまま書き直しを待つ
-2. 同じ語が高頻度で検出される場合、まず **その語がプロジェクト文脈で本当に避けるべきか** を判断する
-3. 避けるべきなら規則のままにし、Codex 側に学習させる。プロジェクト用語として許容するなら `codex-jp-tune disable <term>` で外す
-4. 逆に、プロジェクト固有の避けたい語が検出されないなら `codex-jp-tune add <term> --suggest "..."` で追加する
+`finalize` が `ok:false` を返したときの判断は、次の 3 分岐に集約されます。
+
+**1. そのまま Codex に書き直させる**（まず最初に試す）
+
+Codex は違反の具体名（`slice` → `時間区間` など）を受け取って自動で rewrite するため、ほとんどのケースはこれで収束します。同じ語が何度も出る場合のみ、下の 2 か 3 を検討してください。
+
+**2. 特定の語を検出対象から外す**（プロジェクト用語として許容したい場合）
+
+例: データ分析チームで `time slice` を日常的に使う → `codex-jp-tune disable slice`
+
+**3. プロジェクト固有の禁止語を追加する**（検出されるべき語が検出されていない場合）
+
+例: 社内で過去に誤用が起きた `foobar` を確実に止めたい → `codex-jp-tune add foobar --suggest "foobar は日本語訳を使う"`
+
+迷ったら `$jp-harness-tune` スキルを呼んで判断を整理します。ルールを緩める方向の変更は日本語品質を下げる方向なので、スキル側がワンクッション挟みます。
 
 ### 運用監視
 
