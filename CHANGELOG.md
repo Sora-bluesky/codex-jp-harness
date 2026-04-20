@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-04-20
+
+開発者の `uv sync` 一発で pytest / ruff / pytest-cov が揃うよう、dev 依存を PEP 735 の `[dependency-groups]` 形式に追加する chore。従来の `[project.optional-dependencies]` も残しているため、pip 利用者の `pip install -e '.[dev]'` は引き続き動く。
+
+### Changed
+- **`pyproject.toml` に `[dependency-groups] dev = [...]` を追加**（pytest>=8.0 / pytest-cov>=5.0 / ruff>=0.5）。`uv sync` はデフォルトでこのグループを同期するため、コントリビューターが `--extra dev` を覚えていなくてもテスト環境が整う。
+- **`[project.optional-dependencies] dev` は維持**。pip 経由のインストールと extras 指定での同期を壊さないための wire 互換。
+
+### Notes
+- コード変更なし。90 件の pytest と ruff check は全通過。
+- 既存開発者が v0.2.12 で `uv sync` を走らせて dev 依存がプルーニングされた場合、v0.2.13 以降は `uv sync` だけで自動復活する。
+
 ## [0.2.12] - 2026-04-20
 
 hook の標準入力が Japanese Windows (cp932 デフォルト) で誤デコードされ、Stop hook が missing-finalize を記録できなくなる実バグの修正。v0.2.11 までは stdout / stderr のみ UTF-8 に強制していたが、`[Console]::In` はデフォルトで `InputEncoding` を使うため、Codex が UTF-8 で piped した JSON payload が cp932 として解釈され `ConvertFrom-Json` が silent fail する経路が残っていた。
