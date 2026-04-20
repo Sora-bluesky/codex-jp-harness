@@ -50,7 +50,7 @@ def record(
         response_bytes = len(json.dumps(response, ensure_ascii=False).encode("utf-8"))
         entry = {
             "schema_version": SCHEMA_VERSION,
-            "ts": datetime.datetime.now(datetime.timezone.utc)
+            "ts": datetime.datetime.now(datetime.UTC)
             .replace(microsecond=0)
             .isoformat()
             .replace("+00:00", "Z"),

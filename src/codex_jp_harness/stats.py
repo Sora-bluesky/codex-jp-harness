@@ -20,8 +20,8 @@ import datetime
 import json
 import statistics
 import sys
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable, Iterator
 
 from codex_jp_harness.metrics import metrics_path
 
@@ -71,10 +71,12 @@ def cmd_show(args: argparse.Namespace) -> int:
     elapsed = [float(e.get("elapsed_ms", 0.0)) for e in entries]
     ok_count = sum(1 for e in entries if e.get("ok"))
 
+    total = len(entries)
+    fail = total - ok_count
     print(f"metrics file: {path}")
-    print(f"total calls:  {len(entries)}")
-    print(f"ok=true:      {ok_count} ({ok_count * 100 / len(entries):.1f}%)")
-    print(f"ok=false:     {len(entries) - ok_count} ({(len(entries) - ok_count) * 100 / len(entries):.1f}%)")
+    print(f"total calls:  {total}")
+    print(f"ok=true:      {ok_count} ({ok_count * 100 / total:.1f}%)")
+    print(f"ok=false:     {fail} ({fail * 100 / total:.1f}%)")
     print()
 
     def _stats(name: str, vals: list[float], unit: str) -> None:

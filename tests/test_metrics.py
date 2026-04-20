@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import io
 import json
 from pathlib import Path
 
@@ -35,7 +34,7 @@ def test_record_appends_jsonl(tmp_path: Path) -> None:
     first = json.loads(lines[0])
     assert first["schema_version"] == "1"
     assert first["draft_chars"] == 5
-    assert first["draft_bytes"] == len("こんにちは".encode("utf-8"))
+    assert first["draft_bytes"] == len("こんにちは".encode())
     assert first["violations_count"] == 0
     assert first["severity_counts"] == {"ERROR": 0, "WARNING": 0, "INFO": 0}
     assert first["ok"] is True
