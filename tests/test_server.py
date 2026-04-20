@@ -1,7 +1,7 @@
 """Tests for codex_jp_harness.server."""
 
 from codex_jp_harness.rules import Violation
-from codex_jp_harness.server import _summarize, finalize
+from codex_jp_harness.server import _fast_path_applicable, _summarize, finalize
 
 
 class TestSummarize:
@@ -41,12 +41,23 @@ class TestFinalize:
         result = finalize("進捗を報告します。実装が完了しました。")
         assert result == {"ok": True}
 
-    def test_error_violations_block(self):
-        # `done` is severity=ERROR
+    def test_banned_term_error_takes_fast_path(self):
+        # `done` is severity=ERROR and banned_term with a short replacement,
+        # so the server auto-rewrites rather than returning ok:false.
         result = finalize("TASK を done に切り替えた。")
+        assert result["ok"] is True
+        assert result.get("fixed") is True
+        assert "rewritten" in result
+        assert "完了" in result["rewritten"]
+        assert "done" not in result["rewritten"].lower()
+
+    def test_non_banned_term_error_stays_in_slow_path(self):
+        # `bare_identifier` is never auto-fixable; fast path must not apply.
+        result = finalize("foo.bar.baz という処理を走らせた。")
         assert result["ok"] is False
         assert "violations" in result
-        assert any(v.get("term") == "done" for v in result["violations"])
+        assert any(v.get("rule") == "bare_identifier" for v in result["violations"])
+        assert result.get("fixed") is not True
 
     def test_warning_only_passes_with_advisories(self):
         # `helper` is severity=WARNING; if no ERROR, ok should be True
@@ -64,10 +75,55 @@ class TestFinalize:
         assert "advisories" in result
         assert any(v.get("term") == "merge" for v in result["advisories"])
 
-    def test_mixed_error_and_warning_blocks(self):
-        # Mix of done (ERROR) and helper (WARNING) — should block on ERROR.
+    def test_mixed_banned_term_error_and_warning_fast_path(self):
+        # done (ERROR banned_term) + helper (WARNING banned_term).
+        # ERROR is auto-fixable → fast path. helper survives as advisory.
         result = finalize("done に変更し、helper を整理した。")
+        assert result["ok"] is True
+        assert result.get("fixed") is True
+        assert "完了" in result["rewritten"]
+        # WARNING helper should be in advisories after the fix, not blocked.
+        assert "advisories" in result
+        assert any(v.get("term") == "helper" for v in result["advisories"])
+
+    def test_mixed_banned_term_and_structural_error_stays_slow(self):
+        # done (ERROR banned_term) + bare_identifier (ERROR, not auto-fixable)
+        # means fast path skips entirely — we keep the whole list as violations.
+        result = finalize("done に切り替え、foo.bar.baz を走らせた。")
         assert result["ok"] is False
-        terms = {v.get("term") for v in result["violations"]}
-        assert "done" in terms
-        assert "helper" in terms
+        rules = {v.get("rule") for v in result["violations"]}
+        assert "banned_term" in rules
+        assert "bare_identifier" in rules
+        assert result.get("fixed") is not True
+
+
+class TestFastPathGate:
+    def test_banned_term_with_replacement_applicable(self):
+        vs = [
+            Violation(
+                rule="banned_term", line=1, term="slice",
+                suggest="限定的な変更", severity="ERROR",
+            )
+        ]
+        assert _fast_path_applicable(vs) is True
+
+    def test_banned_term_without_replacement_rejected(self):
+        vs = [Violation(rule="banned_term", line=1, term="slice", suggest="", severity="ERROR")]
+        assert _fast_path_applicable(vs) is False
+
+    def test_non_banned_term_rejected(self):
+        vs = [Violation(rule="bare_identifier", line=1, token="foo.bar", severity="ERROR")]
+        assert _fast_path_applicable(vs) is False
+
+    def test_empty_rejected(self):
+        assert _fast_path_applicable([]) is False
+
+    def test_mixed_rule_types_rejected(self):
+        vs = [
+            Violation(
+                rule="banned_term", line=1, term="slice",
+                suggest="限定的な変更", severity="ERROR",
+            ),
+            Violation(rule="bare_identifier", line=1, token="foo.bar", severity="ERROR"),
+        ]
+        assert _fast_path_applicable(vs) is False

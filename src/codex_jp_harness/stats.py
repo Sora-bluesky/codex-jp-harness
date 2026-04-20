@@ -84,10 +84,13 @@ def cmd_show(args: argparse.Namespace) -> int:
 
     total = len(entries)
     fail = total - ok_count
+    fixed_count = sum(1 for e in entries if e.get("fixed"))
     print(f"metrics file: {path}")
     print(f"total calls:  {total}")
     print(f"ok=true:      {ok_count} ({ok_count * 100 / total:.1f}%)")
     print(f"ok=false:     {fail} ({fail * 100 / total:.1f}%)")
+    fixed_pct = fixed_count * 100 / total
+    print(f"fast-path:    {fixed_count} ({fixed_pct:.1f}% server-side auto-rewrite)")
     print()
 
     def _stats(name: str, vals: list[float], unit: str) -> None:

@@ -17,10 +17,12 @@
 
 ```bash
 codex-jp-stats path               # jsonl のパスを表示
-codex-jp-stats show               # draft_chars / violations / elapsed_ms の分布と ok 率
+codex-jp-stats show               # draft_chars / violations / elapsed_ms の分布、ok 率、fast-path 率
 codex-jp-stats overhead --window 30   # 同一ターン内 retry の推定（window 秒以内を同一ターンとみなす）
 codex-jp-stats tail 20            # 末尾 20 行を生 JSON で表示
 ```
+
+`show` の `fast-path:` 行（v0.2.17 以降）は、server-side 自動修正（`banned_term` のみの ERROR を `rewritten` で返すケース）が全呼び出しの何 % を占めたかを示す。高いほど retry 往復が削減されている。
 
 `overhead` は「draft が tool 引数と最終メッセージで 2 回 output される」前提で、retry 回数から `avg output-factor = retry_rate + 2.0` を出力する。月次でこの値を記録すると、トークンコスト増分のトレンドが追える。
 

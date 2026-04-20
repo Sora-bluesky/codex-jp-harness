@@ -6,10 +6,12 @@ import pytest
 
 from codex_jp_harness.rules import (
     Violation,
+    apply_auto_fix,
     detect_banned_terms,
     detect_bare_identifiers,
     detect_sentence_length,
     detect_too_many_identifiers,
+    extract_replacement,
     lint,
     load_rules,
 )
@@ -278,3 +280,76 @@ class TestVialationSerialization:
         v = Violation(rule="banned_term", line=1, term="x")
         d = v.to_dict()
         assert "category" not in d
+
+
+class TestExtractReplacement:
+    def test_empty_returns_none(self):
+        assert extract_replacement("") is None
+
+    def test_single_chunk(self):
+        assert extract_replacement("限定的な変更") == "限定的な変更"
+
+    def test_jp_comma_split(self):
+        assert extract_replacement("限定的な変更、今回の範囲") == "限定的な変更"
+
+    def test_ascii_comma_split(self):
+        assert extract_replacement("ペイロード, payload") == "ペイロード"
+
+    def test_long_descriptive_rejected(self):
+        long = (
+            "非常に長い文章で置換するにはふさわしくないほど説明的な言い換え"
+            "なので拒否されるべき文字列"
+        )
+        assert extract_replacement(long) is None
+
+    def test_whitespace_trimmed(self):
+        assert extract_replacement("  完了  ") == "完了"
+
+
+class TestApplyAutoFix:
+    def test_single_banned_term_replaced(self):
+        v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更、今回の範囲")
+        out = apply_auto_fix("今回の slice を進める", [v])
+        assert out == "今回の 限定的な変更 を進める"
+
+    def test_case_insensitive_replacement(self):
+        v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
+        out = apply_auto_fix("Slice と slice が混在", [v])
+        assert "限定的な変更 と 限定的な変更" in out
+
+    def test_code_block_preserved(self):
+        v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
+        src = "テスト\n```python\nx = slice(0, 10)\n```\nslice の文章"
+        out = apply_auto_fix(src, [v])
+        assert "x = slice(0, 10)" in out  # code block preserved
+        assert "限定的な変更 の文章" in out  # prose replaced
+
+    def test_inline_backtick_preserved(self):
+        v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
+        out = apply_auto_fix("関数 `slice(x)` を使うが slice の概念は避ける", [v])
+        assert "`slice(x)`" in out
+        assert "限定的な変更 の概念は避ける" in out
+
+    def test_markdown_link_url_preserved(self):
+        v = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
+        src = "[API](https://example.com/slice) の slice 機能"
+        out = apply_auto_fix(src, [v])
+        assert "https://example.com/slice" in out
+        assert "限定的な変更 機能" in out
+
+    def test_multiple_terms_replaced(self):
+        v1 = Violation(rule="banned_term", line=1, term="slice", suggest="限定的な変更")
+        v2 = Violation(rule="banned_term", line=1, term="done", suggest="完了")
+        out = apply_auto_fix("slice を done にした", [v1, v2])
+        assert out == "限定的な変更 を 完了 にした"
+
+    def test_non_banned_rule_ignored(self):
+        v = Violation(rule="bare_identifier", line=1, token="foo.bar")
+        out = apply_auto_fix("foo.bar を使う", [v])
+        assert out == "foo.bar を使う"  # unchanged
+
+    def test_no_extractable_replacement_skipped(self):
+        long_suggest = "非常に長い文章で置換するにはふさわしくないほど説明的な言い換え"
+        v = Violation(rule="banned_term", line=1, term="slice", suggest=long_suggest)
+        out = apply_auto_fix("slice を進めた", [v])
+        assert out == "slice を進めた"  # unchanged because replacement rejected

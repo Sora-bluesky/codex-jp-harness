@@ -64,6 +64,7 @@ def record(
     elapsed_ms: float,
     path: Path | None = None,
     max_bytes: int = DEFAULT_MAX_BYTES,
+    fixed: bool = False,
 ) -> None:
     """Append one metric line. Swallows all I/O errors.
 
@@ -71,6 +72,10 @@ def record(
     ``max_bytes`` (default 20 MB). Only one archive generation is kept;
     prior archives are removed on rotation so total disk usage is bounded
     at roughly ``2 * max_bytes``.
+
+    ``fixed`` is ``True`` when the server used the fast-path auto-rewrite
+    instead of handing violations back to the caller. It's additive on the
+    schema; readers must default to ``False`` when missing.
     """
     try:
         target = path if path is not None else metrics_path()
@@ -95,6 +100,7 @@ def record(
             "response_bytes": response_bytes,
             "elapsed_ms": round(elapsed_ms, 2),
             "ok": bool(response.get("ok", False)),
+            "fixed": bool(fixed),
         }
         with target.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

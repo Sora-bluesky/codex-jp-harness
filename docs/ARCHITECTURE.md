@@ -25,9 +25,13 @@ Codex が日本語応答を返すまでの MCP 往復と、Stop → SessionStart
 1. ユーザー入力を Codex が受領
 2. Codex が下書きを生成
 3. Codex が `mcp__jp_lint__finalize(draft)` を呼ぶ
-4. `jp-lint` サーバーが `rules.py` で lint し、violations と `ok:{true,false}` を返す
-5. `ok: false` なら Codex が書き直して再度 `finalize`（最大 3 retry）
+4. `jp-lint` サーバーが `rules.py` で lint し、違反の種類で次のいずれかに分岐:
+   - **Fast path** (v0.2.17+): 違反がすべて `banned_term` で `suggest` から置換語を抽出できる場合、server が draft を直接書き換えて `{"ok": true, "fixed": true, "rewritten": ...}` を返す。Codex は再 rewrite せず `rewritten` をそのままユーザーに返す（retry ゼロ）
+   - **Slow path**: 構造的違反（`bare_identifier` / `too_many_identifiers` / `sentence_too_long` 等）を含む場合は従来通り `{"ok": false, "violations": ...}` を返す
+5. slow path の場合、Codex が violations を読んで書き直して再度 `finalize`（最大 3 retry）
 6. `ok: true` を得たドラフトのみユーザーに返す
+
+Fast path は server-side の決定的な置換のみを担い、曖昧さを含む rewrite は LLM に委ねる。トークン消費を削減する主因は **retry のゼロ化**（1 ターン = 1 call で確定）。
 
 **後方検知ループ（残り数%）**:
 A. ターン終了時、Stop hook が `last_assistant_message` + transcript を走査
