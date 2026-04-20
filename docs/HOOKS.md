@@ -205,6 +205,10 @@ state ファイルに書くのは `session_id` / `ts` / `violation` 種別のみ
 3. `~/.codex/hooks.json` がリポジトリ内スクリプトの**絶対パス**を指しているか
 4. Codex CLI を再起動したか（`hooks.json` は起動時にのみ読まれる）
 
+### Stop hook が日本語応答で記録してくれない（Japanese Windows）
+
+cp932 デフォルトの Windows コンソールで hook が起動される場合、PowerShell がデフォルトの `[Console]::InputEncoding` を cp932 として読むため、Codex が UTF-8 で渡した JSON を誤デコードして `ConvertFrom-Json` が silent fail する可能性がありました。v0.2.12 で **stdin / stdout / stderr を UTF-8 に強制**する設定を `.ps1` 側に入れたため、v0.2.12 以降の利用者は影響を受けません。v0.2.6〜v0.2.11 で hook を配置した利用者は `git pull && uv sync` のみで解消します（Codex 再起動は不要、hook 起動時に毎回 UTF-8 が効きます）。
+
 ### state ファイルが更新されない
 
 ```powershell

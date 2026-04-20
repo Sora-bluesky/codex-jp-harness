@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-04-20
+
+hook の標準入力が Japanese Windows (cp932 デフォルト) で誤デコードされ、Stop hook が missing-finalize を記録できなくなる実バグの修正。v0.2.11 までは stdout / stderr のみ UTF-8 に強制していたが、`[Console]::In` はデフォルトで `InputEncoding` を使うため、Codex が UTF-8 で piped した JSON payload が cp932 として解釈され `ConvertFrom-Json` が silent fail する経路が残っていた。
+
+### Fixed
+- **`hooks/stop-finalize-check.ps1` と `hooks/session-start-reeducate.ps1` の先頭で `[Console]::InputEncoding` を UTF-8 に強制**。これにより cp932 デフォルトの環境でも Codex から piped された UTF-8 JSON が正しく読める。
+- **`docs/HOOKS.md` のトラブルシューティングに本件を追記**。v0.2.6〜v0.2.11 の利用者向けに `git pull && uv sync` だけで解消する旨を明記した（Codex 再起動不要、hook は起動ごとに `.ps1` を読み直す）。
+
+### Notes
+- bash 版 hook は `PYTHONIOENCODING=utf-8` を既に v0.2.6 で設定済み（stdin も stdout も）なので影響なし。
+- E2E 検証で dogfooding 利用者（Japanese Windows）が FAIL を踏んで検出。Codex CLI 自体の挙動変更ではなく PowerShell のデフォルト設定に起因するので、他の Windows 利用者にも影響する可能性があった。
+- テスト変更なし（既存 90 件全通過）。.ps1 の挙動変更はテストランナーから検証できないため、手動検証のみ。
+
 ## [0.2.11] - 2026-04-20
 
 `codex-jp-stats overhead` が Windows の cp932 コンソールで `UnicodeEncodeError` で落ちる問題の patch。出力文字列に含まれる `≈` (U+2248) と `×` (U+00D7) が cp932 にないため、デフォルト codepage の環境でクラッシュしていた。
