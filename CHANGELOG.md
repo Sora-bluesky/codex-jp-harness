@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-04-20
+
+ドキュメント描画の patch リリース。v0.2.7 まで `docs/assets/arch-03-layer-responsibility.svg` が `<b>` タグを vector path として描画しており、GitHub で「`<b>AGENTS.md 規約層</b>`」のようにリテラル文字列として表示されていた。Figma MCP が太字指定を HTML タグ文字列のままグリフ化したのが原因。該当図を Mermaid 図に置き換えた。
+
+### Fixed
+- **`docs/ARCHITECTURE.md` の「レイヤー責務」図を Mermaid に置換**。`<b>` glyph 問題を根本解消し、GitHub native renderer に任せる方針に変更した。User / Runtime / Harness / Persistence の 4 層と依存関係を `flowchart TB` で表現。
+- **`docs/assets/arch-03-layer-responsibility.svg` を削除**。
+
+### Notes
+- 他 3 枚の SVG（arch-01 / arch-02 / arch-04）は `<b>` タグ問題がないためそのまま保持。
+- コード変更なし。既存 81 件の pytest は全通過。
+
 ## [0.2.7] - 2026-04-20
 
 ドキュメント描画の patch リリース。v0.2.6 で `docs/assets/` に配置したアーキテクチャ図 4 枚が拡張子 `.png` で保存されていたが中身は SVG XML だったため、GitHub が `image/png` として解釈してレンダリングに失敗していた。拡張子を `.svg` に統一し、Markdown の `![...](...)` 参照も併せて更新した。

@@ -39,7 +39,34 @@ D. 最大 400 文字の再教育プロンプトを stdout 経由で Codex 側に
 
 コンポーネントの責務を 4 層（ユーザー層 / Codex ランタイム / ハーネス / 永続化）に切り分けると、テスト容易性とアンインストール容易性が同時に得られる。
 
-![arch-03: Layer responsibility](assets/arch-03-layer-responsibility.svg)
+```mermaid
+flowchart TB
+    subgraph User["User 層"]
+        U[Codex CLI 入出力]
+    end
+    subgraph Runtime["Codex Runtime 層"]
+        R1[Codex 本体]
+        R2[AGENTS.md 読込]
+        R3[hooks ディスパッチ]
+    end
+    subgraph Harness["Harness 層"]
+        H1[server.py<br/>MCP finalize ツール]
+        H2[rules.py<br/>純関数 lint]
+        H3[stop-finalize-check<br/>session-start-reeducate]
+    end
+    subgraph Persist["Persistence 層"]
+        P1[banned_terms.yaml<br/>禁止語 SSoT]
+        P2[state/jp-harness.jsonl<br/>呼び忘れログ]
+        P3[stats.json<br/>呼び出し統計]
+    end
+    User --> Runtime
+    Runtime --> Harness
+    Harness --> Persist
+    H1 -.uses.-> H2
+    H1 -.reads.-> P1
+    H3 -.writes/reads.-> P2
+    H1 -.writes.-> P3
+```
 
 | レイヤー | コンポーネント | 責務 | 依存先 |
 |---|---|---|---|
