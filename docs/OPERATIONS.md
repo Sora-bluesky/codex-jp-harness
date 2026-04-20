@@ -4,23 +4,25 @@
 
 月1回、以下を確認する。
 
-### stats.json
+### jp-harness-metrics.jsonl
 
-`config/stats.json`（インストール後に自動生成）:
+`~/.codex/state/jp-harness-metrics.jsonl`（v0.2.9 以降、`finalize` 呼び出しのたびに server.py が 1 行追記する）:
 
-```json
-{
-  "finalize_calls_total": 1234,
-  "retry_count_distribution": { "0": 980, "1": 200, "2": 40, "3": 14 },
-  "violations_by_type": {
-    "banned_term": 150,
-    "bare_identifier": 80,
-    "too_many_identifiers": 30,
-    "noun_chain_no": 20
-  },
-  "last_updated": "2026-05-01T10:00:00+09:00"
-}
+```jsonl
+{"schema_version":"1","ts":"2026-04-20T10:00:00Z","draft_chars":128,"draft_bytes":380,"violations_count":0,"severity_counts":{"ERROR":0,"WARNING":0,"INFO":0},"response_bytes":12,"elapsed_ms":1.2,"ok":true}
+{"schema_version":"1","ts":"2026-04-20T10:00:03Z","draft_chars":128,"draft_bytes":380,"violations_count":2,"severity_counts":{"ERROR":1,"WARNING":1,"INFO":0},"response_bytes":190,"elapsed_ms":1.8,"ok":false}
 ```
+
+集計は `codex-jp-stats` CLI（`uv sync` 済みの環境で動く）で行う:
+
+```bash
+codex-jp-stats path               # jsonl のパスを表示
+codex-jp-stats show               # draft_chars / violations / elapsed_ms の分布と ok 率
+codex-jp-stats overhead --window 30   # 同一ターン内 retry の推定（window 秒以内を同一ターンとみなす）
+codex-jp-stats tail 20            # 末尾 20 行を生 JSON で表示
+```
+
+`overhead` は「draft が tool 引数と最終メッセージで 2 回 output される」前提で、retry 回数から `avg output-factor = retry_rate + 2.0` を出力する。月次でこの値を記録すると、トークンコスト増分のトレンドが追える。
 
 ### .jp-lint-violations.jsonl
 
