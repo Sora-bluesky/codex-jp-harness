@@ -1,6 +1,22 @@
 # Architecture
 
-本ドキュメントは ja-output-harness の設計判断を記録する。MCP `finalize` ゲート（Tier 2）と Stop + SessionStart hook（Tier 1 補完）の二層構成が核で、それぞれが独立した失敗領域を埋める。
+本ドキュメントは ja-output-harness の設計判断を記録する。v0.4.0 以降は 3 モード製品（lite / strict-lite / strict）で、各モードが Tier 1（hook）と Tier 2（MCP gate）の組み合わせで違反検出の強度と output overhead をトレードする。
+
+## モード別アーキテクチャ（v0.4.0+）
+
+| モード | default? | Tier 1 hook | Tier 2 MCP | output-factor | excess overhead | compliance |
+|---|---|---|---|---|---|---|
+| **lite** | ✅ | ローカル lint + jsonl 記録（post-hoc 再教育） | 無し | ~1.00× | +0.00× | 60-75%（仮説） |
+| **strict-lite** | | 同上 + ERROR で `{"decision":"block"}` 返却（continuation 自己修正） | 無し | ~1.15× | +0.15× | 95%+ |
+| **strict** | | missing-finalize 検知（v0.3.x 相当） | `finalize` gate が turn ごとに draft を lint | ~2.00〜3.00× | +1.00〜+2.00× | 95%+ |
+
+lite モードは MCP server を install しないため、Codex CLI から model loop に tool-call argument として draft が流れない。唯一の Tier 1 hook が model 外の Python で lint を走らせるので、output tokens は 1 byte も増えない（`config/hooks.example.json` の outer timeout 15s + rules_cli inner timeout 10s でエンフォース）。
+
+strict-lite は Stop hook が Codex 公式の `{"decision":"block","reason":"..."}` プロトコルを使い continuation を発動する。`stop_hook_active` guard で 2 回目以降の block を抑止し、1 turn で直らない違反による無限ループを防ぐ（v0.4.0 gpt-5.4 review Blocker #2 対応）。
+
+strict は v0.3.x の MCP finalize gate。fast-path 57% 発火と retry 0.48/turn で excess +1.00〜+2.00× に収まる。従来のスイスチーズ設計はこのモードでのみ発動する。
+
+
 
 ## 全体像（スイスチーズモデル）
 

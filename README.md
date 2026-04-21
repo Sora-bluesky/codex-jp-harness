@@ -1,6 +1,8 @@
 # ja-output-harness
 
-Codex が日本語で書く報告・ドキュメント・記事を、最終応答の直前で自動検品するための Python パッケージです。Codex の返答を間で読む MCP サーバー（`finalize` ツール）を主体とし、呼び忘れを拾う 2 種類のフックで補完します。Codex CLI / Codex App の両方で動きます。
+Codex が日本語で書く報告・ドキュメント・記事を、**output トークン 0% overhead**（デフォルト `lite` モード）で検品する Python パッケージです。違反は Codex の Stop hook がローカルで検品し、翌セッションで再教育します。厳格なリアルタイムゲートが必要なら `strict` モード（MCP `finalize` サーバー、v0.3.x と同等）も選べます。Codex CLI / Codex App の両方で動きます。
+
+> 🪙 **v0.4.0 で何が変わった?**: v0.3.x のデフォルトは MCP gate で **output-factor 3.00×（excess +200%）**でした。「トークン節約したい」層の採用障壁になっていたため、v0.4.0 からはデフォルトを Stop hook + ローカル検品の `lite` モードに切り替え、MCP gate は opt-in の `strict` モードへ降格しました。`lite` は output 側に 1 byte も足しません。強制力と overhead のトレードオフは [3 モード比較](#モード選択) を参照してください。
 
 > ⚠️ **Disclaimer / 免責**
 >
@@ -61,6 +63,37 @@ SessionStart hook: 次回起動時に state を読み、再教育プロンプト
 
 - 全体像（スイスチーズモデル）: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - hook 詳細仕様と state スキーマ: [`docs/HOOKS.md`](docs/HOOKS.md)
+
+## モード選択
+
+v0.4.0 以降は 3 モードから選択する（default: `lite`）。
+
+| モード | output-factor | excess overhead | 強制力 | 仕組み | 対象 |
+|---|---|---|---|---|---|
+| **lite**（default） | ~1.00× | **+0.00×** | post-hoc（翌セッションで再教育） | Stop hook が assistant message をローカル検品 → `jp-harness-lite.jsonl` 記録 | 「トークン最優先、違反は後から直せば OK」 |
+| **strict-lite** | ~1.15× | +0.15× | real-time（continuation で自己修正） | 同じローカル検品 + ERROR 時に `{"decision":"block"}` を emit → Codex 自動再試行 | 「overhead は許容、高精度を求める」 |
+| **strict** | ~2.00〜3.00× | +1.00〜+2.00× | real-time（MCP gate） | MCP `finalize` server が ターンごとに draft を検査 | 「compliance 最優先、overhead 許容」 |
+
+### どれを選ぶか?
+
+```
+トークン消費を節約したい → lite
+違反検出を可能な限り実時間で抑えたい + 多少の overhead は許容 → strict-lite
+v0.3.x と同等の厳格ゲートを維持したい → strict
+```
+
+### 切替方法
+
+```bash
+# 新規 install (default = lite)
+bash scripts/install.sh --append-agents-rule
+
+# 明示的に指定
+bash scripts/install.sh --mode=strict-lite --append-agents-rule --force-hooks
+pwsh scripts/install.ps1 -Mode lite -AppendAgentsRule -ForceHooks
+```
+
+既存の strict から lite へ移行する場合は `-AppendAgentsRule -ForceHooks` を付ける。旧 AGENTS.md ルールブロックと MCP server 登録が自動で片付く。
 
 ## 3. インストール
 

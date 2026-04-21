@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-21
+
+v0.3.x の MCP `finalize` gate は 95%+ のリアルタイム compliance を取れる代わりに **output-factor 3.00× / excess +200% output tokens** を払う構造で、「トークン節約したい」層の採用を妨げていた。v0.4.0 は **デフォルトを "lite" モードに切り替え、MCP gate を opt-in の "strict" モードへ降格**する。これで excess overhead は new install で 0.00× が基準になる。
+
+### Added
+- **3 つのインストールモード** `install.{ps1,sh} --mode={lite|strict-lite|strict}`:
+  - `lite`（新規 install の default）: MCP server を登録しない。Stop hook が assistant message を `ja_output_harness.rules_cli` で検品し `jp-harness-lite.jsonl` に記録。output-factor ≈ 1.00×（excess ~0.00×）。compliance は仮説 60-75%（post-hoc 再教育で翌セッション補正）。
+  - `strict-lite`: 同じ lite lint + ERROR 検出時に `{"decision":"block","reason":"..."}` を emit して Codex continuation で self-correct。output-factor ≈ 1.15×（excess ~0.15×）、compliance 95%+。
+  - `strict`: v0.3.x 相当の MCP finalize gate。output-factor 2.0〜3.0×。
+- **`ja_output_harness.rules_cli`**: assistant message を受け取り JSON で violations を返すローカル CLI。lite / strict-lite Stop hook から呼ばれる。出力は model loop の外で走るため output tokens 0。
+- **`config/agents_rule_lite.md`**: lite / strict-lite モード用の短い AGENTS.md ルールブロック（top-5 ERROR + 発火トリガー）。
+- **`~/.codex/state/jp-harness-mode`**: Stop hook が runtime に読み取る mode marker。install で書き込み、uninstall で削除。
+
+### Changed
+- **AGENTS.md 管理ブロックに BEGIN/END マーカー導入**: `<!-- BEGIN ja-output-harness managed block -->` / `<!-- END ja-output-harness managed block -->` で囲む。mode 切替時の再インストールが旧ブロック（strict/lite 両方）を自動置換するようになり、「strict→lite で MCP ルールが残って Codex が無い tool を呼ぶ」事故を防ぐ（gpt-5.4 review BLOCKER #1）。
+- **`Violation.to_dict` の payload slim**: `fix` と `category` フィールドを削除、`snippet` を 50 chars に cap。違反 1 件あたり約 170 bytes（-76%）削減。
+- **Stop hook timeout 5s → 15s** + inner subprocess timeout 10s: Windows cold Python start への余裕（gpt-5.4 review MEDIUM #5）。
+- **lite / strict-lite で hooks.json mismatch は hard fail**: 従来の warning は enforcement 無しの無言状態を招いていた。`--force-hooks` で上書きを明示要求する（gpt-5.4 review MEDIUM #4）。
+
+### Fixed
+- **strict-lite の `stop_hook_active` ガード**: continuation 中の二次 block を抑止し、1 turn で修正できない違反が無限ループに陥らない（gpt-5.4 review BLOCKER #2、`codex-rs/hooks/schema/generated/stop.command.input.schema.json` 準拠）。
+
+### Known Issues
+- 並行 Stop hook で `jp-harness-lite.jsonl` への append が稀にレースする可能性（gpt-5.4 review MEDIUM #3）。POSIX の O_APPEND は小さい書き込みで atomic だが、Windows での厳密な保証は無い。v0.4.1 で `metrics.py` の `_rotate_lock` パターンを共有化する予定。
+
+### Notes
+- 反映手順: `uv sync --reinstall-package ja-output-harness` → `scripts/install.{ps1,sh} --mode lite -AppendAgentsRule` → Codex 再起動。
+- strict ユーザーが lite に移行する場合: `--mode lite -AppendAgentsRule -ForceHooks` を指定すれば AGENTS.md の旧ルールと MCP server 登録が自動で片付く。
+- pytest 183 passed（+10）、ruff clean、CI matrix 4/4 + scan + sanitize 通過予定。
+
 ## [0.3.8] - 2026-04-21
 
 v0.3.7 のドッグフーディングで `fast-path` 発火率 0% が観測されたが、原因切り分けに必要な情報がメトリクス jsonl に含まれていなかった。schema v2 として `rule_counts` を追加し、`ja-output-stats show` に fast-path miss 診断を追加。
