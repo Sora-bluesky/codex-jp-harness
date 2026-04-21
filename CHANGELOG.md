@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-21
+
+v0.3.0 リネーム直後の gpt-5.4 レビューで、`src/ja_output_harness/__init__.py:3` の `__version__` が `0.2.22` のまま残っていることを検出。`pyproject.toml` と `CHANGELOG.md` は `0.3.0` を宣言しているのに実行時バージョンだけ旧値で、障害報告・サポート切り分け・将来の自己診断がずれる状態だった。
+
+### Fixed
+- **`__version__`**: `0.2.22` → `0.3.1` に是正。以後は pyproject の `version` と必ず同期する。
+
+### Added
+- **`tests/test_version_sync.py`**: `__version__` と `pyproject.toml` の `version` が乖離したら CI が落ちる整合テスト。合わせて CHANGELOG に当該バージョンのエントリが存在するかも検証する。
+
+### Notes
+- 機能・挙動に変更なし。リリース後の運用データは継続して有効。
+
 ## [0.3.0] - 2026-04-21
 
 **Breaking: リポジトリ / パッケージ / CLI のリネーム**。OpenAI の App Developer Terms は「OpenAI による支援・推奨と誤認される設計」を避けるよう求めており、製品名 **Codex** を冠した識別子（リポ名 `codex-jp-harness`、Python パッケージ `codex_jp_harness`、CLI `codex-jp-tune` / `codex-jp-stats`）は本プロジェクトが非公式ユーティリティであるにもかかわらず誤認を招く可能性があった。そのため商標非依存の名称 `ja-output-harness` へ移行する。機能説明中の「Codex CLI / App」言及は nominative fair use として残置する。
