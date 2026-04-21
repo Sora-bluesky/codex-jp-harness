@@ -159,6 +159,22 @@ else
   fi
 fi
 
+# Resolve a Python 3.8+ interpreter for hook-setup helpers. Git Bash on
+# Windows often only ships `py` (Windows launcher), not `python3`, so we use
+# the same probe that the hook scripts themselves use. Fall back to the
+# repo's venv Python as a last resort (guaranteed to exist from preflight).
+resolve_python3() {
+  for cand in python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then
+      if "$cand" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+        printf '%s' "$cand"
+        return 0
+      fi
+    fi
+  done
+  printf '%s' "$VENV_PYTHON"
+}
+
 # Hooks placement (opt-in, experimental, Codex 0.120.0+)
 if [[ "$ENABLE_HOOKS" == "true" ]]; then
   echo ""
@@ -196,11 +212,16 @@ if [[ "$ENABLE_HOOKS" == "true" ]]; then
     # Build absolute commands
     stop_cmd="bash \"$STOP_HOOK_PATH\""
     start_cmd="bash \"$START_HOOK_PATH\""
-    # JSON-escape backslashes and double quotes
-    stop_cmd_json="$(printf '%s' "$stop_cmd" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$stop_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
-    start_cmd_json="$(printf '%s' "$start_cmd" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$start_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    # Resolve a Python 3 interpreter once so the JSON-escape helpers and the
+    # template renderer use the same binary (gpt-5.4 review #47 — the previous
+    # code hard-coded python3 and broke on Git Bash setups that only have `py`).
+    HOOK_PY="$(resolve_python3)"
 
-    rendered="$(python3 - "$HOOKS_TEMPLATE" "$stop_cmd_json" "$start_cmd_json" <<'PY' 2>/dev/null || true
+    # JSON-escape backslashes and double quotes
+    stop_cmd_json="$(printf '%s' "$stop_cmd" | "$HOOK_PY" -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$stop_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    start_cmd_json="$(printf '%s' "$start_cmd" | "$HOOK_PY" -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])' 2>/dev/null || printf '%s' "$start_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+
+    rendered="$("$HOOK_PY" - "$HOOKS_TEMPLATE" "$stop_cmd_json" "$start_cmd_json" <<'PY' 2>/dev/null || true
 import sys, pathlib
 path, stop_cmd, start_cmd = sys.argv[1], sys.argv[2], sys.argv[3]
 tpl = pathlib.Path(path).read_text(encoding="utf-8")
