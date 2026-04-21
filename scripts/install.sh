@@ -136,28 +136,77 @@ mkdir -p "$STATE_DIR"
 printf '%s' "$MODE" > "$MODE_MARKER"
 echo "[ja-output-harness] Wrote mode marker: $MODE_MARKER = $MODE"
 
-# AGENTS.md rule handling
+# AGENTS.md rule handling — marker-wrapped managed block so re-installs
+# replace atomically regardless of the prior mode (gpt-5.4 review BLOCKER #1).
+BEGIN_MARKER='<!-- BEGIN ja-output-harness managed block -->'
+END_MARKER='<!-- END ja-output-harness managed block -->'
+LEGACY_HEADER='## 日本語技術文の品質ゲート (ja-output-harness'
+
 if [[ -f "$AGENTS_PATH" ]]; then
-  if grep -qF "$RULE_MARKER" "$AGENTS_PATH"; then
-    echo "[ja-output-harness] AGENTS.md already contains the $MODE-mode rule. OK."
-  elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
+  HAS_MANAGED="no"; HAS_LEGACY="no"
+  if grep -qF "$BEGIN_MARKER" "$AGENTS_PATH"; then HAS_MANAGED="yes"; fi
+  if grep -qF "$LEGACY_HEADER" "$AGENTS_PATH"; then HAS_LEGACY="yes"; fi
+
+  if [[ "$HAS_MANAGED" == "yes" ]] || { [[ "$APPEND_AGENTS_RULE" == "true" ]] && [[ "$HAS_LEGACY" == "yes" || "$HAS_MANAGED" == "yes" ]]; }; then
     if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
-      echo "[ja-output-harness] agents_rule.md not found at $RULE_BLOCK_PATH" >&2
+      echo "[ja-output-harness] rule file not found at $RULE_BLOCK_PATH" >&2
       exit 1
     fi
-    # Strip HTML comment block
     rule_stripped="$(awk '/<!--/,/-->/{next} {print}' "$RULE_BLOCK_PATH")"
-    # Ensure AGENTS.md ends with a newline before appending
+    HOOK_PY="${HOOK_PY:-python3}"; command -v "$HOOK_PY" >/dev/null 2>&1 || HOOK_PY="python"
+    MANAGED_STATUS=$(AGENTS_PATH="$AGENTS_PATH" \
+      BEGIN_MARKER="$BEGIN_MARKER" END_MARKER="$END_MARKER" \
+      LEGACY_HEADER="$LEGACY_HEADER" \
+      RULE_STRIPPED="$rule_stripped" \
+      HAS_MANAGED="$HAS_MANAGED" HAS_LEGACY="$HAS_LEGACY" \
+      "$HOOK_PY" - <<'PY'
+import os, re, pathlib
+
+agents_path = pathlib.Path(os.environ["AGENTS_PATH"])
+begin = os.environ["BEGIN_MARKER"]
+end = os.environ["END_MARKER"]
+legacy = os.environ["LEGACY_HEADER"]
+rule = os.environ["RULE_STRIPPED"].lstrip()
+has_managed = os.environ["HAS_MANAGED"] == "yes"
+has_legacy = os.environ["HAS_LEGACY"] == "yes"
+
+content = agents_path.read_text(encoding="utf-8")
+if has_managed:
+    managed_re = re.compile(r"\r?\n?" + re.escape(begin) + r".*?" + re.escape(end) + r"\r?\n?", re.DOTALL)
+    content = managed_re.sub("\n", content)
+if has_legacy and not has_managed:
+    legacy_re = re.compile(r"(?sm)^" + re.escape(legacy) + r"[^\n]*\n.*?(?=\r?\n## |\Z)")
+    content = legacy_re.sub("", content)
+
+content = content.rstrip() + "\n"
+wrapped = f"{begin}\n{rule}\n{end}\n"
+agents_path.write_text(content + wrapped, encoding="utf-8")
+print("replaced")
+PY
+)
+    echo "[ja-output-harness] Replaced managed rule block in AGENTS.md (mode=$MODE). status=$MANAGED_STATUS"
+  elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
+    if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
+      echo "[ja-output-harness] rule file not found at $RULE_BLOCK_PATH" >&2
+      exit 1
+    fi
+    rule_stripped="$(awk '/<!--/,/-->/{next} {print}' "$RULE_BLOCK_PATH")"
     if [[ -n "$(tail -c1 "$AGENTS_PATH")" ]]; then
       printf '\n' >> "$AGENTS_PATH"
     fi
-    printf '%s\n' "$rule_stripped" >> "$AGENTS_PATH"
-    echo "[ja-output-harness] Appended finalize rule block to AGENTS.md"
+    {
+      printf '%s\n' "$BEGIN_MARKER"
+      printf '%s\n' "$rule_stripped"
+      printf '%s\n' "$END_MARKER"
+    } >> "$AGENTS_PATH"
+    echo "[ja-output-harness] Appended managed rule block to AGENTS.md (mode=$MODE)."
+  elif [[ "$HAS_LEGACY" == "yes" ]]; then
+    echo "[ja-output-harness] AGENTS.md contains a pre-v0.4.0 rule block. Re-run with --append-agents-rule to migrate."
   else
     echo ""
-    echo "[ja-output-harness] AGENTS.md does not yet reference the finalize rule."
+    echo "[ja-output-harness] AGENTS.md does not yet reference the $MODE-mode rule."
     echo "[ja-output-harness] Re-run with --append-agents-rule to append automatically,"
-    echo "[ja-output-harness] or manually append the content of config/agents_rule.md."
+    echo "[ja-output-harness] or manually append the content of $RULE_BLOCK_PATH."
   fi
 else
   echo "[ja-output-harness] AGENTS.md not found; skipping rule handling."
@@ -277,6 +326,13 @@ PY
       elif [[ "$FORCE_HOOKS" == "true" ]]; then
         printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
         echo "[ja-output-harness] Overwrote existing hooks.json (--force-hooks)."
+      elif [[ "$MODE" == "lite" || "$MODE" == "strict-lite" ]]; then
+        # lite / strict-lite rely on the Stop hook for enforcement. A stale
+        # hooks.json silently disables the harness, so refuse to proceed
+        # instead of leaving the user unprotected (gpt-5.4 review MEDIUM #4).
+        echo "[ja-output-harness] Mode '$MODE' requires a matching hooks.json but $HOOKS_JSON_PATH differs from the bundled template." >&2
+        echo "[ja-output-harness] Re-run with --force-hooks to overwrite, or merge $HOOKS_TEMPLATE manually." >&2
+        exit 1
       else
         echo "[ja-output-harness] Existing hooks.json at $HOOKS_JSON_PATH differs from bundled template." >&2
         echo "[ja-output-harness] Review and re-run with --force-hooks to overwrite, or merge manually." >&2

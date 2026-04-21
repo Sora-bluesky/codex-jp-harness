@@ -105,9 +105,12 @@ def _run_lite(payload, last_msg, state_dir, mode):
         tf.write(last_msg)
         tf.close()
         try:
+            # Inner timeout deliberately tighter than the hook-wide 15s
+            # declared in config/hooks.example.json, leaving ~5s headroom
+            # for cold Python start on Windows (gpt-5.4 review MEDIUM #5).
             proc = subprocess.run(
                 [venv_py, "-m", "ja_output_harness.rules_cli", "--check", tempfile_path],
-                capture_output=True, text=True, encoding="utf-8", timeout=5,
+                capture_output=True, text=True, encoding="utf-8", timeout=10,
             )
         except Exception:
             return 0
@@ -139,7 +142,13 @@ def _run_lite(payload, last_msg, state_dir, mode):
         except Exception as e:
             sys.stderr.write("[ja-output-harness] lite jsonl write error: " + str(e) + "\n")
 
-        if mode == "strict-lite" and not ok:
+        # Codex sets stop_hook_active = true when the current Stop event is
+        # itself the result of a prior Stop hook continuation. Emitting
+        # another block in that case can infinite-loop when the model
+        # cannot clean the violation in one try. Log only; do not block.
+        # (gpt-5.4 review BLOCKER #2)
+        stop_hook_active = bool(payload.get("stop_hook_active"))
+        if mode == "strict-lite" and not ok and not stop_hook_active:
             parts = [f"{r}: {n}" for r, n in rule_counts.items()]
             reason = (
                 "ja-output-harness lite: " + ", ".join(parts)

@@ -130,7 +130,17 @@ try {
             $line = $entry | ConvertTo-Json -Compress
             Add-Content -Path $liteStateFile -Value $line -Encoding utf8
 
-            if ($mode -eq 'strict-lite' -and -not $result.ok) {
+            # Codex sets stop_hook_active = true when the current Stop
+            # event is itself the result of a prior Stop hook continuation.
+            # Emitting another block in that case can infinite-loop when the
+            # model cannot clean the violation in one try. Log only; do not
+            # block. (gpt-5.4 review BLOCKER #2)
+            $stopHookActive = $false
+            if ($null -ne $payload.stop_hook_active) {
+                $stopHookActive = [bool]$payload.stop_hook_active
+            }
+
+            if ($mode -eq 'strict-lite' -and -not $result.ok -and -not $stopHookActive) {
                 # Build a short reason (<300 chars) listing top rules.
                 $parts = @()
                 foreach ($rule in $ruleCountsHash.Keys) {

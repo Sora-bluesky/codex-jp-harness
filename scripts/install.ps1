@@ -144,33 +144,69 @@ Write-Host "[ja-output-harness] Wrote mode marker: $modeMarker = $Mode" -Foregro
 # strict uses the full rule that tells Codex to call mcp__jp_lint__finalize;
 # lite / strict-lite use a shorter rule that describes the top-5 constraints
 # because the MCP server is absent.
+#
+# Managed block uses BEGIN/END HTML comment markers so that re-installs
+# replace the block atomically regardless of the prior mode. Without
+# markers, switching strict → lite would leave the old finalize rule
+# alongside the new rule and Codex would try to call a tool that is no
+# longer registered (gpt-5.4 review BLOCKER #1).
+$beginMarker = '<!-- BEGIN ja-output-harness managed block -->'
+$endMarker   = '<!-- END ja-output-harness managed block -->'
 if ($Mode -eq "strict") {
     $ruleBlockPath = Join-Path $repoRoot "config\agents_rule.md"
 } else {
     $ruleBlockPath = Join-Path $repoRoot "config\agents_rule_lite.md"
 }
-$ruleMarker = if ($Mode -eq "strict") { 'mcp__jp_lint__finalize' } else { 'ja-output-harness lite' }
+$managedPattern = '(?s)\r?\n?' + [regex]::Escape($beginMarker) + '.*?' + [regex]::Escape($endMarker) + '\r?\n?'
+$legacyHeader   = '## 日本語技術文の品質ゲート (ja-output-harness'
+$legacyPattern  = '(?sm)^## 日本語技術文の品質ゲート \(ja-output-harness[^\n]*\n.*?(?=\r?\n## |\z)'
+
 if (Test-Path $agentsPath) {
     $agents = Get-Content $agentsPath -Raw
-    if ($agents -match [regex]::Escape($ruleMarker)) {
-        Write-Host "[ja-output-harness] AGENTS.md already contains the $Mode-mode rule. OK." -ForegroundColor Green
-    } elseif ($AppendAgentsRule) {
+    $hasManaged = $agents -match [regex]::Escape($beginMarker)
+    $hasLegacy  = $agents -match [regex]::Escape($legacyHeader)
+
+    if ($hasManaged -or ($AppendAgentsRule -and ($hasManaged -or $hasLegacy))) {
+        # Re-install path: always replace with the current mode's rule.
         if (-not (Test-Path $ruleBlockPath)) {
-            Write-Error "agents_rule.md not found at $ruleBlockPath"
+            Write-Error "rule file not found at $ruleBlockPath"
             exit 1
         }
-        # Strip HTML comments from rule block before appending
-        $ruleRaw = Get-Content $ruleBlockPath -Raw
+        $ruleRaw  = Get-Content $ruleBlockPath -Raw
         $rulePart = [regex]::Replace($ruleRaw, '(?s)<!--.*?-->', '').TrimStart()
-        # Ensure AGENTS.md ends with a newline before appending
+        $wrapped  = "$beginMarker`n$rulePart`n$endMarker`n"
+
+        $cleaned = $agents
+        if ($hasManaged) {
+            $cleaned = [regex]::Replace($cleaned, $managedPattern, "`n")
+        }
+        if ($hasLegacy -and -not $hasManaged) {
+            # Legacy rule from a pre-v0.4.0 install. Remove it before adding
+            # the new marker-wrapped block so the two do not coexist.
+            $cleaned = [regex]::Replace($cleaned, $legacyPattern, '')
+        }
+        $cleaned = $cleaned.TrimEnd() + "`n"
+        Set-Content -Path $agentsPath -Value ($cleaned + $wrapped) -NoNewline -Encoding utf8
+        Write-Host "[ja-output-harness] Replaced managed rule block in AGENTS.md (mode=$Mode)." -ForegroundColor Green
+    } elseif ($AppendAgentsRule) {
+        # Fresh install, marker block not present.
+        if (-not (Test-Path $ruleBlockPath)) {
+            Write-Error "rule file not found at $ruleBlockPath"
+            exit 1
+        }
+        $ruleRaw  = Get-Content $ruleBlockPath -Raw
+        $rulePart = [regex]::Replace($ruleRaw, '(?s)<!--.*?-->', '').TrimStart()
+        $wrapped  = "$beginMarker`n$rulePart`n$endMarker`n"
         if (-not $agents.EndsWith("`n")) {
             Add-Content -Path $agentsPath -Value "`n" -NoNewline
         }
-        Add-Content -Path $agentsPath -Value $rulePart -NoNewline
-        Write-Host "[ja-output-harness] Appended finalize rule block to AGENTS.md" -ForegroundColor Green
+        Add-Content -Path $agentsPath -Value $wrapped -NoNewline
+        Write-Host "[ja-output-harness] Appended managed rule block to AGENTS.md (mode=$Mode)." -ForegroundColor Green
+    } elseif ($hasLegacy) {
+        Write-Host "[ja-output-harness] AGENTS.md contains a pre-v0.4.0 rule block. Re-run with -AppendAgentsRule to migrate to the current mode." -ForegroundColor Yellow
     } else {
         Write-Host ""
-        Write-Host "[ja-output-harness] AGENTS.md does not yet reference the finalize rule." -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] AGENTS.md does not yet reference the $Mode-mode rule." -ForegroundColor Yellow
         Write-Host "[ja-output-harness] Re-run with -AppendAgentsRule to append automatically," -ForegroundColor Yellow
         Write-Host "[ja-output-harness] or manually append the content of config\agents_rule.md." -ForegroundColor Yellow
     }
@@ -257,6 +293,13 @@ if ($EnableHooks) {
             } elseif ($ForceHooks) {
                 Set-Content -Path $hooksJsonPath -Value $rendered -NoNewline -Encoding utf8
                 Write-Host "[ja-output-harness] Overwrote existing hooks.json (-ForceHooks)." -ForegroundColor Yellow
+            } elseif ($Mode -in @("lite", "strict-lite")) {
+                # lite / strict-lite rely on the Stop hook for enforcement. A
+                # stale hooks.json silently disables the harness, so refuse
+                # to proceed instead of leaving the user unprotected
+                # (gpt-5.4 review MEDIUM #4).
+                Write-Error "Mode '$Mode' requires a matching hooks.json but $hooksJsonPath differs from the bundled template. Re-run with -ForceHooks to overwrite, or merge the template manually ($hooksTemplate). Refusing to proceed because without the Stop hook lite mode has no enforcement."
+                exit 1
             } else {
                 Write-Warning "Existing hooks.json at $hooksJsonPath differs from the bundled template."
                 Write-Warning "Review the difference and re-run with -ForceHooks to overwrite, or merge manually."

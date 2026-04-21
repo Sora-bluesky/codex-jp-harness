@@ -28,7 +28,7 @@
           {
             "type": "command",
             "command": "{{STOP_COMMAND}}",
-            "timeout": 5
+            "timeout": 15
           }
         ]
       }
