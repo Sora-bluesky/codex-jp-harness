@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.20] - 2026-04-21
+
+v0.2.19 の 8 ステップ walkthrough を実運用で試したところ、スキルが Step 3 の意図メニューを省略して Step 3（判断支援）へ直行する現象を dogfooding で確認した。原因はスキルが「opening メッセージに特定語があれば意図 1/2 と判定」という自然な推論を行うため、discover したかった利用者が意図 6 を選べなかったこと。スキルと README の両方を実態に合わせる。
+
+### Changed
+- **`skills/jp-harness-tune/SKILL.md` の Step 2**: 各意図に**キーワード例**を併記し、opening メッセージに該当キーワードがあれば番号確認を省いて該当 Step へ直行する旨を明文化。`slice と done をどう扱うべきか` のように特定語だけ示した場合は意図 1 / 2 として扱う判断ルールを追加。
+- **`README.md` Section 4「候補の発掘（discover）」**: 8 ステップ連番を「起動 + 意図明示」と「その後の 5 ステップ」に再構成。`$jp-harness-tune 最近の Codex 出力から禁止語の候補を抽出したい` のような明示的 opening の例を追加し、意図が曖昧なままだと意図 6 に到達しない理由も説明。
+
+### Notes
+- コード変更なし。130 件の pytest / ruff check は全通過。
+- 既存利用者は `git pull` と install script の再実行（`pwsh scripts\install.ps1 -AppendAgentsRule` / bash 版）で `~/.codex/skills/jp-harness-tune/SKILL.md` も更新される。ただしスキルは MCP とは独立してファイル読み込み時点で評価されるので、更新後は Codex （CLI / App）の再起動を推奨。
+
 ## [0.2.19] - 2026-04-21
 
 v0.2.18 の `discover` 節は CLI コマンド中心で、Codex App から対話で使う手順が分かりにくいというフィードバックを受けた docs patch。初回利用者が迷わないよう、スキル経由の 8 ステップを README に明示する。
