@@ -196,6 +196,36 @@ class TestOverrideOrder:
         assert entry["severity"] == "INFO"
 
 
+class TestDiscoverFileEncoding:
+    """gpt-5.4 review #46: discover --file must survive non-UTF-8 bytes."""
+
+    def test_utf8_file_parses(self, user_config: Path, tmp_path: Path, capsys):
+        sample = tmp_path / "draft.txt"
+        sample.write_text("context preview preview iframe iframe", encoding="utf-8")
+        rc = tune.main(["discover", "--file", str(sample), "--min-occurrences", "1"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "preview" in out
+
+    def test_cp932_file_falls_back(self, user_config: Path, tmp_path: Path, capsys):
+        sample = tmp_path / "draft_cp932.txt"
+        # Contains Japanese that is valid cp932 but invalid UTF-8.
+        sample.write_bytes("対象を preview して review する。".encode("cp932"))
+        rc = tune.main(["discover", "--file", str(sample), "--min-occurrences", "1"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "preview" in out
+
+    def test_invalid_bytes_degrade_gracefully(self, user_config: Path, tmp_path: Path):
+        # Byte sequence that is valid in neither UTF-8 nor cp932 (continuation
+        # without lead byte). discover must not crash; replacement chars are
+        # acceptable.
+        sample = tmp_path / "bad.bin"
+        sample.write_bytes(b"\xff\xfeabc preview preview\n")
+        rc = tune.main(["discover", "--file", str(sample), "--min-occurrences", "1"])
+        assert rc == 0
+
+
 class TestShow:
     def test_show_prints_bundled_count(self, user_config: Path, capsys):
         rc = tune.main(["show"])

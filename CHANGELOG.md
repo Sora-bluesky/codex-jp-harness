@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-21
+
+gpt-5.4 code review の MAJOR 3 件を解消 (#46, #47, #50)。shell script 周辺と discover の非 UTF-8 対応。
+
+### Fixed
+- **`discover --file` が UTF-8 固定で cp932 ログに落ちる** (#46): UTF-8 → cp932 → UTF-8 with `errors="replace"` の decode fallback を追加。Japanese Windows のログファイルで `UnicodeDecodeError` を吐かなくなった。
+- **`install.sh --enable-hooks` の python3 固定** (#47): `resolve_python3` 関数を導入し、`python3` / `python` / `py` の優先順位でプローブ、最後のフォールバックは `.venv` Python。Git Bash + `py` だけの Windows で base install は通るのに hook 設定だけ落ちていた状況を解消。
+- **`uninstall.{ps1,sh}` の約束と実装の食い違い** (#50): `[mcp_servers.jp_lint]` に加えて、`config.toml` の `codex_hooks = true` 行と、`hooks.json` の ja-output-harness / codex-jp-harness を参照するエントリを自動プルーニング。AGENTS.md は意図的に手動のまま（他ユーザー定義ルールが混在する可能性）。
+
+### Added
+- **`tests/test_tune.TestDiscoverFileEncoding`** +3 件: UTF-8 / cp932 / 無効バイト列の discover round-trip
+
+### Notes
+- pytest 162 件 全通過（+3）、ruff clean
+- 反映手順: `uv sync` → 必要なら `pwsh scripts\install.ps1 -EnableHooks` / `bash scripts/install.sh --enable-hooks` を再実行 → Codex 再起動
+
 ## [0.3.3] - 2026-04-21
 
 gpt-5.4 code review の MAJOR 2 件を解消 (#45, #49)。新ルール追加とドキュメント実態整合。
