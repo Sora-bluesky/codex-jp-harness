@@ -1,21 +1,30 @@
 # ja-output-harness: Stop hook
 #
-# Determines whether the just-completed turn produced a Japanese assistant
-# reply without calling mcp__jp_lint__finalize, and records a missing-finalize
-# entry to ~/.codex/state/jp-harness.jsonl for the next SessionStart hook.
+# Behaviour varies with the installed mode (read from
+# ~/.codex/state/jp-harness-mode, default "strict"):
+#
+#   strict      - v0.3.x behaviour. Detects a Japanese reply that skipped
+#                 `mcp__jp_lint__finalize` and logs a missing-finalize entry
+#                 for the next SessionStart hook to re-educate.
+#
+#   lite        - No MCP server is registered in this mode; the MCP
+#                 gate would cost ~200% output tokens. Instead, we run
+#                 the local `ja_output_harness.rules_cli` over the
+#                 assistant message and append violations to
+#                 jp-harness-lite.jsonl. Zero output tokens because the
+#                 check runs outside the model loop.
+#
+#   strict-lite - Same lite lint, but on ERROR-severity violations we
+#                 return `{"decision":"block","reason":...}` so Codex
+#                 auto-creates a continuation turn to self-correct.
+#                 excess overhead ~= p * retry_cost, typically ~0.15x.
 #
 # Codex 0.120.x Stop hook stdin fields:
 #   session_id, turn_id, transcript_path (nullable), cwd, hook_event_name,
 #   model, permission_mode, stop_hook_active, last_assistant_message (nullable)
 #
-# Detection:
-#   1. If last_assistant_message contains no Japanese characters -> skip.
-#   2. If transcript_path is unavailable -> skip (fail-open).
-#   3. Scan transcript for "finalize" string; if found -> skip.
-#   4. Otherwise record missing-finalize entry.
-#
 # Contract:
-#   output : stdout empty
+#   output : stdout = JSON hook response (or empty for strict mode)
 #   exit   : 0 always (never break the session)
 
 $ErrorActionPreference = 'Continue'
@@ -50,6 +59,98 @@ try {
         exit 0
     }
 
+    $codexHome = $env:CODEX_HOME
+    if ([string]::IsNullOrWhiteSpace($codexHome)) {
+        $codexHome = Join-Path $env:USERPROFILE '.codex'
+    }
+    $stateDir  = Join-Path $codexHome 'state'
+    if (-not (Test-Path $stateDir)) {
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+    }
+
+    # Mode marker (written by install.ps1 --mode). Default "strict" preserves
+    # v0.3.x behaviour when the marker is missing.
+    $modeFile = Join-Path $stateDir 'jp-harness-mode'
+    $mode = 'strict'
+    if (Test-Path $modeFile) {
+        $mode = (Get-Content -Path $modeFile -Raw -Encoding utf8).Trim()
+        if ([string]::IsNullOrWhiteSpace($mode)) { $mode = 'strict' }
+    }
+
+    if ($mode -eq 'lite' -or $mode -eq 'strict-lite') {
+        # Resolve the repo root and venv python from this script's location.
+        # $PSCommandPath is the absolute path of the executing script
+        # (install.ps1 registers the hook by absolute path so this is stable).
+        $scriptPath = $PSCommandPath
+        if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+            $scriptPath = $MyInvocation.MyCommand.Path
+        }
+        $hookDir  = Split-Path -Parent $scriptPath
+        $repoRoot = Split-Path -Parent $hookDir
+        $venvPy   = Join-Path $repoRoot '.venv\Scripts\python.exe'
+        if (-not (Test-Path $venvPy)) {
+            # No venv available — fail-open silently.
+            exit 0
+        }
+
+        # Write the assistant message to a UTF-8 temp file. heredoc / pipe
+        # stdin is avoided because CRLF conversion and codepage decoding on
+        # Windows corrupts Japanese text (gpt-5.4 review).
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        try {
+            [System.IO.File]::WriteAllText($tempFile, $lastMsg, [System.Text.UTF8Encoding]::new($false))
+            $raw = & $venvPy -m ja_output_harness.rules_cli --check $tempFile 2>$null
+            if ([string]::IsNullOrWhiteSpace($raw)) { exit 0 }
+            try {
+                $result = $raw | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+                exit 0
+            }
+
+            $ruleCountsHash = @{}
+            if ($null -ne $result.rule_counts) {
+                $result.rule_counts.PSObject.Properties | ForEach-Object {
+                    $ruleCountsHash[$_.Name] = $_.Value
+                }
+            }
+
+            $liteStateFile = Join-Path $stateDir 'jp-harness-lite.jsonl'
+            $now     = [DateTime]::UtcNow
+            $expires = $now.AddHours(24)
+            $entry = [ordered]@{
+                schema_version   = '1'
+                ts               = $now.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                session          = [string]$payload.session_id
+                ok               = [bool]$result.ok
+                violation_count  = [int]$result.violation_count
+                rule_counts      = $ruleCountsHash
+                mode             = $mode
+                expires          = $expires.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            }
+            $line = $entry | ConvertTo-Json -Compress
+            Add-Content -Path $liteStateFile -Value $line -Encoding utf8
+
+            if ($mode -eq 'strict-lite' -and -not $result.ok) {
+                # Build a short reason (<300 chars) listing top rules.
+                $parts = @()
+                foreach ($rule in $ruleCountsHash.Keys) {
+                    $parts += ("${rule}: " + $ruleCountsHash[$rule])
+                }
+                $reason = "ja-output-harness lite: " + ($parts -join ', ') +
+                    ". 違反箇所を修正してから再送してください。"
+                $block = [ordered]@{
+                    decision = 'block'
+                    reason   = $reason
+                }
+                ($block | ConvertTo-Json -Compress)
+            }
+        } finally {
+            if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
+        }
+        exit 0
+    }
+
+    # Strict mode (v0.3.x behaviour).
     $transcriptPath = ''
     if ($null -ne $payload.transcript_path) {
         $transcriptPath = [string]$payload.transcript_path
@@ -69,15 +170,7 @@ try {
     # "finalize" (gpt-5.4 follow-up review MINOR).
     if ($transcript -match 'mcp__jp_lint__finalize') { exit 0 }
 
-    $codexHome = $env:CODEX_HOME
-    if ([string]::IsNullOrWhiteSpace($codexHome)) {
-        $codexHome = Join-Path $env:USERPROFILE '.codex'
-    }
-    $stateDir  = Join-Path $codexHome 'state'
     $stateFile = Join-Path $stateDir 'jp-harness.jsonl'
-    if (-not (Test-Path $stateDir)) {
-        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
-    }
 
     $now     = [DateTime]::UtcNow
     $expires = $now.AddHours(24)
