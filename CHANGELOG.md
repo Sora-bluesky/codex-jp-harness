@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-21
+
+gpt-5.4 code review の MAJOR 2 件を解消 (#44, #48)。`tune.py` まわりの core fix。
+
+### Fixed
+- **`set-severity` が user-added term に効かない** (#44): `_apply_user_overrides` の順序が「disable → overrides → add」だったため、`add` で追加した term に `overrides` が当たらなかった。順序を「disable → add → overrides」に変更し、両方に適用されるよう修正。
+- **`set-severity` が unknown term にも成功表示する** (#44): 存在しない term を指定しても silently 成功して嘘を返していた。bundled + user-added の merged view で lookup し、存在しなければ exit code 1 で拒否。
+- **user-local override 更新が非原子的** (#48): 「読み込み → 全体再書き込み」がロックなしで走り、並行 `add`/`remove` で変更が消える可能性があった。`tempfile.mkstemp + os.replace` による atomic write と、`O_CREAT|O_EXCL` の lock file による排他を導入。stale lock は timeout で強制解除。
+
+### Added
+- **`tests/test_tune.py`**: +6 件
+  - `set-severity` が user-added term の effective severity に反映されるか
+  - unknown term は exit code 1 + stderr メッセージ
+  - atomic write で tempfile / lock が残らない
+  - 8 スレッド並行 `add` で全 term が保存される（last-write-wins しない）
+  - `_apply_user_overrides` が add された term の severity を overrides で書き換えられる
+
+### Notes
+- pytest 152 件 全通過（+6）、ruff clean
+- 反映手順: `uv sync` → Codex（CLI / App）再起動。user override ファイルのスキーマ変更なし
+
 ## [0.3.1] - 2026-04-21
 
 v0.3.0 リネーム直後の gpt-5.4 レビューで、`src/ja_output_harness/__init__.py:3` の `__version__` が `0.2.22` のまま残っていることを検出。`pyproject.toml` と `CHANGELOG.md` は `0.3.0` を宣言しているのに実行時バージョンだけ旧値で、障害報告・サポート切り分け・将来の自己診断がずれる状態だった。

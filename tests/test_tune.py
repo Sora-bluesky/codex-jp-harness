@@ -117,6 +117,85 @@ class TestRemove:
         assert rc == 1
 
 
+class TestSetSeverityOnAddedTerm:
+    """gpt-5.4 review #44: set-severity must reach user-added terms too."""
+
+    def test_severity_on_added_term_is_effective(self, user_config: Path):
+        tune.main(["add", "custom-term", "--suggest", "置換案", "--severity", "ERROR"])
+        rc = tune.main(["set-severity", "custom-term", "WARNING"])
+        assert rc == 0
+        data = _load(user_config)
+        assert data["overrides"]["custom-term"]["severity"] == "WARNING"
+
+        # Effective severity through load_rules must reflect the override.
+        from ja_output_harness.rules import load_rules
+        cfg = load_rules(tune.BUNDLED_RULES_PATH, user_config)
+        entry = next(e for e in cfg.banned if e.get("term") == "custom-term")
+        assert entry["severity"] == "WARNING"
+
+    def test_unknown_term_rejected(self, user_config: Path, capsys):
+        rc = tune.main(["set-severity", "no-such-term-anywhere", "WARNING"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "unknown term" in err
+
+
+class TestAtomicWrite:
+    """gpt-5.4 review #48: user override updates must be atomic."""
+
+    def test_save_leaves_no_tempfile(self, user_config: Path):
+        tune.main(["add", "persist-me", "--suggest", "永続化"])
+        # No stray tempfile siblings should remain (.jp_lint.yaml.*.tmp).
+        siblings = list(user_config.parent.glob(f".{user_config.name}.*.tmp"))
+        assert siblings == []
+
+    def test_lock_file_released_after_success(self, user_config: Path):
+        tune.main(["add", "foo", "--suggest", "バー"])
+        lock = user_config.with_suffix(user_config.suffix + ".lock")
+        assert not lock.exists()
+
+    def test_concurrent_writes_are_serialized(self, user_config: Path):
+        import threading
+
+        terms = [f"term-{i}" for i in range(8)]
+
+        def writer(term: str) -> None:
+            tune.main(["add", term, "--suggest", "x"])
+
+        threads = [threading.Thread(target=writer, args=(t,)) for t in terms]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        data = _load(user_config)
+        added_terms = {e["term"] for e in data.get("add", [])}
+        # With naive last-write-wins all but one would be lost; with
+        # _locked_rewrite every writer should be preserved.
+        assert added_terms == set(terms)
+
+
+class TestOverrideOrder:
+    """gpt-5.4 review #44 (rules.py): apply overrides AFTER add."""
+
+    def test_override_reaches_added_term(self, tmp_path: Path):
+        user_yaml = tmp_path / "user.yaml"
+        user_yaml.write_text(
+            "add:\n"
+            "  - term: local-bad\n"
+            "    suggest: 置換案\n"
+            "    severity: ERROR\n"
+            "overrides:\n"
+            "  local-bad:\n"
+            "    severity: INFO\n",
+            encoding="utf-8",
+        )
+        from ja_output_harness.rules import load_rules
+        cfg = load_rules(tune.BUNDLED_RULES_PATH, user_yaml)
+        entry = next(e for e in cfg.banned if e.get("term") == "local-bad")
+        assert entry["severity"] == "INFO"
+
+
 class TestShow:
     def test_show_prints_bundled_count(self, user_config: Path, capsys):
         rc = tune.main(["show"])
