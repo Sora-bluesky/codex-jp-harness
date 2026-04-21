@@ -32,7 +32,9 @@ def _lite_entry(ts: str, *, ok: bool, rules: dict | None = None) -> dict:
 
 
 def _ns(**kw: object) -> argparse.Namespace:
-    return argparse.Namespace(**kw)
+    defaults: dict[str, object] = {"allow_overlap": False, "exclude_session": ""}
+    defaults.update(kw)
+    return argparse.Namespace(**defaults)
 
 
 def test_wilson_95_boundary_cases() -> None:
@@ -71,23 +73,17 @@ def test_parse_date_range_invalid(bad: str) -> None:
 def test_ab_report_happy_path_lite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Baseline 25 @ 40%, test 25 @ 96% → Wilson lower bound clears 70%."""
     target = tmp_path / "state" / "jp-harness-lite.jsonl"
     entries = (
-        # Baseline: 14-20 April. 4/10 ok = 40% (below 50%).
-        [_lite_entry("2026-04-14T10:00:00Z", ok=True)]
-        + [_lite_entry("2026-04-15T10:00:00Z", ok=True)]
-        + [_lite_entry("2026-04-16T10:00:00Z", ok=True)]
-        + [_lite_entry("2026-04-17T10:00:00Z", ok=True)]
+        # Baseline: 10 ok + 15 fail = 40%. Wilson lower ≈ 23% (below 50%).
+        [_lite_entry(f"2026-04-14T{i:02d}:00:00Z", ok=True) for i in range(10)]
         + [
-            _lite_entry("2026-04-18T10:00:00Z", ok=False, rules={"banned_term": 2})
-            for _ in range(3)
+            _lite_entry(f"2026-04-18T{i:02d}:00:00Z", ok=False, rules={"banned_term": 2})
+            for i in range(15)
         ]
-        + [
-            _lite_entry("2026-04-19T10:00:00Z", ok=False, rules={"bare_identifier": 1})
-            for _ in range(3)
-        ]
-        # Test: 21-27 April. 9/10 ok = 90%.
-        + [_lite_entry(f"2026-04-21T{i:02d}:00:00Z", ok=True) for i in range(9)]
+        # Test: 24 ok + 1 fail = 96%. Wilson lower ≈ 80% (clears 70%).
+        + [_lite_entry(f"2026-04-21T{i:02d}:00:00Z", ok=True) for i in range(24)]
         + [_lite_entry("2026-04-22T10:00:00Z", ok=False, rules={"banned_term": 1})]
     )
     _seed_lite(target, entries)
@@ -100,10 +96,10 @@ def test_ab_report_happy_path_lite(
     assert rc == 0
     assert "source:  lite" in out
     assert "Baseline" in out and "Test" in out
-    assert "n=10" in out  # both buckets have 10
+    assert "n=25" in out
     assert "40.0%" in out
-    assert "90.0%" in out
-    assert "Delta (test - baseline): +50.0 pp" in out
+    assert "96.0%" in out
+    assert "Delta (test - baseline): +56.0 pp" in out
     assert "DECISION" in out
     assert "lite default OK to ship" in out
 
@@ -169,15 +165,14 @@ def test_ab_report_invalid_range_returns_2(
     assert "error:" in err
 
 
-def test_ab_report_decision_thresholds(
+def test_ab_report_decision_strict_lite_band(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Decision label follows the dogfood-measure.py thresholds (50% / 70%)."""
+    """n=25 @ 80% ok → Wilson lower ≈ 60%, inside the strict-lite band."""
     target = tmp_path / "state" / "jp-harness-lite.jsonl"
-    # Baseline: one ok entry (for range validity). Test: 6 ok / 10 = 60%.
-    entries = [_lite_entry("2026-04-14T00:00:00Z", ok=True)]
-    entries += [_lite_entry(f"2026-04-21T{i:02d}:00:00Z", ok=True) for i in range(6)]
-    entries += [_lite_entry(f"2026-04-21T{i:02d}:00:00Z", ok=False) for i in range(10, 14)]
+    entries = [_lite_entry(f"2026-04-14T{i:02d}:00:00Z", ok=True) for i in range(20)]
+    entries += [_lite_entry(f"2026-04-21T{i:02d}:00:00Z", ok=True) for i in range(20)]
+    entries += [_lite_entry(f"2026-04-22T{i:02d}:00:00Z", ok=False) for i in range(5)]
     _seed_lite(target, entries)
     monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
 
@@ -187,8 +182,29 @@ def test_ab_report_decision_thresholds(
     out = capsys.readouterr().out
     assert rc == 0
     assert "consider strict-lite default" in out
-    # n=10 < 20 triggers the wide-CI note? No, note fires at n < 20.
-    assert "NOTE:" in out
+
+
+def test_ab_report_tiny_sample_is_inconclusive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """n=1 with ok=True used to print 'OK to ship'; must now say inconclusive."""
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    _seed_lite(
+        target,
+        [
+            _lite_entry("2026-04-14T00:00:00Z", ok=True),
+            _lite_entry("2026-04-21T00:00:00Z", ok=True),
+        ],
+    )
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-20", test="2026-04-21:2026-04-27", source="lite")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "inconclusive" in out
+    assert "OK to ship" not in out
 
 
 def test_ab_report_wide_ci_overlap_reported(
@@ -206,7 +222,7 @@ def test_ab_report_wide_ci_overlap_reported(
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "95% CIs overlap" in out
+    assert "Wilson 95% CIs overlap" in out
 
 
 def test_ab_report_cli_entry_point(
@@ -235,3 +251,128 @@ def test_ab_report_cli_entry_point(
     out = capsys.readouterr().out
     assert rc == 0
     assert "Baseline" in out and "Test" in out
+
+
+def test_ab_report_rejects_overlapping_ranges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    _seed_lite(target, [_lite_entry("2026-04-15T00:00:00Z", ok=True)])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-18", test="2026-04-16:2026-04-20", source="lite")
+    )
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "overlap" in err
+
+
+def test_ab_report_allow_overlap_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--allow-overlap lets ranges share dates; the same entry counts in both."""
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    _seed_lite(target, [_lite_entry("2026-04-16T00:00:00Z", ok=True)])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(
+            baseline="2026-04-14:2026-04-18",
+            test="2026-04-16:2026-04-20",
+            source="lite",
+            allow_overlap=True,
+        )
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Entry falls into both buckets because of --allow-overlap.
+    assert "Baseline" in out and "Test" in out
+
+
+def test_ab_report_default_excludes_diag_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A manual hook run writes session='diag'; it must not sway small buckets."""
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    diag = _lite_entry("2026-04-21T10:00:00Z", ok=True)
+    diag["session"] = "diag"
+    real = _lite_entry("2026-04-21T11:00:00Z", ok=False, rules={"banned_term": 1})
+    _seed_lite(
+        target,
+        [
+            _lite_entry("2026-04-14T00:00:00Z", ok=True),
+            diag,
+            real,
+        ],
+    )
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-20", test="2026-04-21:2026-04-27", source="lite")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Only the real entry remains in the test bucket.
+    assert "n=1" in out
+    assert "excluded sessions: diag" in out
+    assert "skipped: session=1" in out
+
+
+def test_ab_report_custom_exclude_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    bad = _lite_entry("2026-04-21T10:00:00Z", ok=True)
+    bad["session"] = "smoke-test"
+    real = _lite_entry("2026-04-21T11:00:00Z", ok=False)
+    _seed_lite(target, [_lite_entry("2026-04-14T00:00:00Z", ok=True), bad, real])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(
+            baseline="2026-04-14:2026-04-20",
+            test="2026-04-21:2026-04-27",
+            source="lite",
+            exclude_session="smoke-test",
+        )
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "smoke-test" in out
+    assert "diag" in out  # default still included
+    assert "n=1" in out
+
+
+def test_ab_report_counts_malformed_ts_in_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    good = _lite_entry("2026-04-21T10:00:00Z", ok=True)
+    malformed = {"schema_version": "1", "ts": "not-a-ts", "ok": True, "session": "x"}
+    _seed_lite(target, [_lite_entry("2026-04-14T00:00:00Z", ok=True), good, malformed])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-20", test="2026-04-21:2026-04-27", source="lite")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "unparseable ts=1" in out
+
+
+def test_ab_report_one_empty_bucket(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Baseline has data, test is empty → exit 0 with 'Test empty' note."""
+    target = tmp_path / "state" / "jp-harness-lite.jsonl"
+    _seed_lite(target, [_lite_entry("2026-04-14T00:00:00Z", ok=True)])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: target)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-20", test="2026-04-21:2026-04-27", source="lite")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Test empty" in out
+    assert "DECISION" not in out

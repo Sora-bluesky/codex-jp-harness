@@ -313,12 +313,40 @@ def _source_entries(source: str) -> tuple[Path, Iterator[dict]]:
     raise ValueError(f"Unknown source '{source}'. Expected 'lite' or 'metrics'.")
 
 
-def _decision_for_rate(rate: float) -> str:
-    """Return the v0.4.0 dogfood decision label for a measured ok rate."""
-    if rate >= 0.70:
-        return "lite default OK to ship (ok rate >= 70%)."
-    if rate >= 0.50:
-        return "consider strict-lite default (ok rate 50-70%)."
+DIAGNOSTIC_SESSIONS = frozenset({"diag"})
+MIN_DECIDABLE_N = 20
+
+
+def _ranges_overlap(
+    b_start: datetime.datetime,
+    b_end: datetime.datetime,
+    t_start: datetime.datetime,
+    t_end: datetime.datetime,
+) -> bool:
+    """Half-open interval overlap: ``[b_start, b_end) ∩ [t_start, t_end)``."""
+    return b_start < t_end and t_start < b_end
+
+
+def _decision_for_bucket(n: int, ci_lo: float) -> str:
+    """Return the v0.4.0 dogfood decision label.
+
+    Guards against shipping on small-sample noise by
+    (a) requiring ``n >= MIN_DECIDABLE_N``, and
+    (b) comparing the Wilson **lower bound** — not the point estimate —
+        against the 50% / 70% thresholds. With n=1 and a single success
+        the point estimate is 100% but the lower bound is ~2.5%, so the
+        decision comes out as "not ready" rather than "OK to ship"
+        (gpt-5.4 review v0.4.0 MAJOR #4).
+    """
+    if n < MIN_DECIDABLE_N:
+        return (
+            f"inconclusive (n={n} < {MIN_DECIDABLE_N}); collect at least"
+            f" {MIN_DECIDABLE_N} samples before deciding."
+        )
+    if ci_lo >= 0.70:
+        return "lite default OK to ship (Wilson lower bound >= 70%)."
+    if ci_lo >= 0.50:
+        return "consider strict-lite default (Wilson lower bound 50-70%)."
     return "lite default NOT ready; keep strict as default or iterate."
 
 
@@ -337,11 +365,32 @@ def cmd_ab_report(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    if _ranges_overlap(b_start, b_end, t_start, t_end) and not args.allow_overlap:
+        print(
+            "error: baseline and test ranges overlap; the same entry would be"
+            " counted in both buckets. Pass --allow-overlap to force it.",
+            file=sys.stderr,
+        )
+        return 2
+
+    excluded = set(DIAGNOSTIC_SESSIONS)
+    if args.exclude_session:
+        for s in args.exclude_session.split(","):
+            s = s.strip()
+            if s:
+                excluded.add(s)
+
     baseline: list[dict] = []
     test: list[dict] = []
+    skipped_ts = 0
+    skipped_session = 0
     for e in entries_iter:
+        if excluded and str(e.get("session", "")) in excluded:
+            skipped_session += 1
+            continue
         ts = _parse_ts(e.get("ts", ""))
         if ts is None:
+            skipped_ts += 1
             continue
         if b_start <= ts < b_end:
             baseline.append(e)
@@ -350,12 +399,21 @@ def cmd_ab_report(args: argparse.Namespace) -> int:
 
     if not baseline and not test:
         print(f"No entries in either range at {path}", file=sys.stderr)
+        if skipped_session or skipped_ts:
+            print(
+                f"  (skipped session={skipped_session}, unparseable ts={skipped_ts})",
+                file=sys.stderr,
+            )
         return 1
 
     b = _summarize(baseline)
     t = _summarize(test)
 
     print(f"source:  {args.source}  ({path})")
+    if excluded:
+        print(f"excluded sessions: {', '.join(sorted(excluded))}")
+    if skipped_session or skipped_ts:
+        print(f"skipped: session={skipped_session}, unparseable ts={skipped_ts}")
     print()
     _print_bucket("Baseline", args.baseline, b)
     print()
@@ -370,22 +428,20 @@ def cmd_ab_report(args: argparse.Namespace) -> int:
         delta_pp = (t["rate"] - b["rate"]) * 100
         direction = "higher" if delta_pp > 0 else ("lower" if delta_pp < 0 else "equal")
         print(f"Delta (test - baseline): {delta_pp:+.1f} pp  ({direction})")
-        overlap = not (b["ci_hi"] < t["ci_lo"] or t["ci_hi"] < b["ci_lo"])
-        if overlap:
+        ci_overlap = not (b["ci_hi"] < t["ci_lo"] or t["ci_hi"] < b["ci_lo"])
+        if ci_overlap:
             print(
-                "Significance: 95% CIs overlap — difference is not conclusive;"
-                " collect more samples."
+                "CI overlap: Wilson 95% CIs overlap — difference is not"
+                " conclusive; collect more samples."
             )
         else:
-            print("Significance: 95% CIs do not overlap — difference is likely real.")
+            print(
+                "CI overlap: Wilson 95% CIs do not overlap — descriptive signal"
+                " only, not a two-proportion significance test."
+            )
 
         print()
-        print(f"DECISION (from test bucket): {_decision_for_rate(t['rate'])}")
-        if t["n"] < 20:
-            print(
-                f"NOTE: test bucket has only {t['n']} entries — CI is wide."
-                " Collect at least 50 before deciding."
-            )
+        print(f"DECISION (from test bucket): {_decision_for_bucket(t['n'], t['ci_lo'])}")
     return 0
 
 
@@ -461,6 +517,25 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("lite", "metrics"),
         default="lite",
         help="Which jsonl to read (default: lite — the v0.4.0 dogfood stream).",
+    )
+    ab.add_argument(
+        "--allow-overlap",
+        action="store_true",
+        help=(
+            "Permit baseline and test ranges to overlap. By default overlapping"
+            " ranges are rejected because the same entry would be counted in"
+            " both buckets."
+        ),
+    )
+    ab.add_argument(
+        "--exclude-session",
+        default="",
+        metavar="ID[,ID...]",
+        help=(
+            "Comma-separated session IDs to skip in addition to the built-in"
+            f" diagnostic set {sorted(DIAGNOSTIC_SESSIONS)}. Useful for removing"
+            " synthetic hook invocations from a dogfood bucket."
+        ),
     )
     ab.set_defaults(func=cmd_ab_report)
     return parser

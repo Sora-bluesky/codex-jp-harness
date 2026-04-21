@@ -182,6 +182,14 @@ if [[ -f "$MODE_MARKER" ]]; then
   echo "[ja-output-harness] Removed mode marker: $MODE_MARKER"
 fi
 
+# 5. Remove the SessionStart consumption cursor so a future install starts
+#    from a clean slate rather than resuming a stale offset.
+CURSOR_FILE="$CODEX_DIR/state/jp-harness-cursor.json"
+if [[ -f "$CURSOR_FILE" ]]; then
+  rm -f "$CURSOR_FILE"
+  echo "[ja-output-harness] Removed cursor file: $CURSOR_FILE"
+fi
+
 echo ""
 echo "[ja-output-harness] Manual step (still required):"
 echo "[ja-output-harness]   Edit ~/.codex/AGENTS.md and remove the quality-gate rule block."
