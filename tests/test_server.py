@@ -51,13 +51,20 @@ class TestFinalize:
         assert "完了" in result["rewritten"]
         assert "done" not in result["rewritten"].lower()
 
-    def test_non_banned_term_error_stays_in_slow_path(self):
-        # `bare_identifier` is never auto-fixable; fast path must not apply.
+    def test_bare_identifier_error_takes_fast_path(self):
+        # v0.2.22+: bare_identifier is auto-fixable by wrapping in backticks.
         result = finalize("foo.bar.baz という処理を走らせた。")
-        assert result["ok"] is False
-        assert "violations" in result
-        assert any(v.get("rule") == "bare_identifier" for v in result["violations"])
-        assert result.get("fixed") is not True
+        assert result["ok"] is True
+        assert result.get("fixed") is True
+        assert "`foo.bar.baz`" in result["rewritten"]
+
+    def test_unfixable_banned_term_error_stays_in_slow_path(self):
+        # banned_term with empty / overly long suggest has no extractable
+        # replacement, so fast path must not apply. We synthesize this by
+        # using a banned term whose suggest dict entry is not an extractable
+        # one-liner. None of the bundled terms match this criterion today,
+        # so we verify the gate directly in TestFastPathGate.
+        pass  # see TestFastPathGate.test_banned_term_without_replacement_rejected
 
     def test_warning_only_passes_with_advisories(self):
         # `helper` is severity=WARNING; if no ERROR, ok should be True
@@ -86,15 +93,14 @@ class TestFinalize:
         assert "advisories" in result
         assert any(v.get("term") == "helper" for v in result["advisories"])
 
-    def test_mixed_banned_term_and_structural_error_stays_slow(self):
-        # done (ERROR banned_term) + bare_identifier (ERROR, not auto-fixable)
-        # means fast path skips entirely — we keep the whole list as violations.
+    def test_mixed_banned_term_and_bare_identifier_fast_path(self):
+        # v0.2.22+: done (ERROR banned_term) + foo.bar.baz (ERROR bare_identifier)
+        # are both auto-fixable; fast path rewrites both in one shot.
         result = finalize("done に切り替え、foo.bar.baz を走らせた。")
-        assert result["ok"] is False
-        rules = {v.get("rule") for v in result["violations"]}
-        assert "banned_term" in rules
-        assert "bare_identifier" in rules
-        assert result.get("fixed") is not True
+        assert result["ok"] is True
+        assert result.get("fixed") is True
+        assert "完了" in result["rewritten"]
+        assert "`foo.bar.baz`" in result["rewritten"]
 
 
 class TestFastPathGate:
@@ -111,14 +117,16 @@ class TestFastPathGate:
         vs = [Violation(rule="banned_term", line=1, term="slice", suggest="", severity="ERROR")]
         assert _fast_path_applicable(vs) is False
 
-    def test_non_banned_term_rejected(self):
+    def test_bare_identifier_applicable(self):
+        # v0.2.22+: bare_identifier is fast-path eligible (wrap in backticks).
         vs = [Violation(rule="bare_identifier", line=1, token="foo.bar", severity="ERROR")]
-        assert _fast_path_applicable(vs) is False
+        assert _fast_path_applicable(vs) is True
 
     def test_empty_rejected(self):
         assert _fast_path_applicable([]) is False
 
-    def test_mixed_rule_types_rejected(self):
+    def test_mixed_banned_and_bare_applicable(self):
+        # v0.2.22+: banned_term with replacement + bare_identifier both fixable.
         vs = [
             Violation(
                 rule="banned_term", line=1, term="slice",
@@ -126,4 +134,9 @@ class TestFastPathGate:
             ),
             Violation(rule="bare_identifier", line=1, token="foo.bar", severity="ERROR"),
         ]
+        assert _fast_path_applicable(vs) is True
+
+    def test_unknown_rule_rejected(self):
+        # An ERROR with a rule type we don't know how to auto-fix blocks fast path.
+        vs = [Violation(rule="mystery_rule", line=1, severity="ERROR")]
         assert _fast_path_applicable(vs) is False

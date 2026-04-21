@@ -7,6 +7,7 @@ import pytest
 from codex_jp_harness.rules import (
     Violation,
     apply_auto_fix,
+    apply_backtick_fix,
     detect_banned_terms,
     detect_bare_identifiers,
     detect_sentence_length,
@@ -353,3 +354,48 @@ class TestApplyAutoFix:
         v = Violation(rule="banned_term", line=1, term="slice", suggest=long_suggest)
         out = apply_auto_fix("slice を進めた", [v])
         assert out == "slice を進めた"  # unchanged because replacement rejected
+
+
+class TestApplyBacktickFix:
+    def test_bare_identifier_wrapped(self, cfg):
+        out = apply_backtick_fix("foo.bar を実行した", cfg)
+        assert "`foo.bar`" in out
+
+    def test_multiple_identifiers_wrapped(self, cfg):
+        out = apply_backtick_fix("foo.bar と baz/qux を使う", cfg)
+        assert "`foo.bar`" in out
+        assert "`baz/qux`" in out
+
+    def test_already_backticked_left_alone(self, cfg):
+        original = "`foo.bar` を使う"
+        out = apply_backtick_fix(original, cfg)
+        # should not double-wrap
+        assert out == original
+
+    def test_fenced_code_block_preserved(self, cfg):
+        src = "通常文 foo.bar を走らせる。\n```\nraw.code.here\n```\n別の foo.bar もある。"
+        out = apply_backtick_fix(src, cfg)
+        assert "raw.code.here" in out  # code block untouched
+        assert "`foo.bar`" in out  # prose wrapped
+
+    def test_markdown_link_url_preserved(self, cfg):
+        src = "[text](https://example.com/a.b/c) の foo.bar を使う"
+        out = apply_backtick_fix(src, cfg)
+        assert "https://example.com/a.b/c" in out
+        assert "`foo.bar`" in out
+
+    def test_no_identifier_unchanged(self, cfg):
+        src = "普通の日本語だけの文です。"
+        out = apply_backtick_fix(src, cfg)
+        assert out == src
+
+    def test_task_id_wrapped(self, cfg):
+        # TASK-347 is a code identifier per the pattern (has a hyphen).
+        out = apply_backtick_fix("TASK-347 を完了した", cfg)
+        assert "`TASK-347`" in out
+
+    def test_commit_hash_like_not_wrapped(self, cfg):
+        # Bare hex string without . _ / - doesn't match identifier_pattern and
+        # stays unchanged (by design — the rule only flags punctuation-bearing tokens).
+        out = apply_backtick_fix("97bfcac をマージした", cfg)
+        assert out == "97bfcac をマージした"

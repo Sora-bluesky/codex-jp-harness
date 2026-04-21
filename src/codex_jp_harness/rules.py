@@ -378,3 +378,37 @@ def apply_auto_fix(draft: str, violations: list[Violation]) -> str:
         ]
         out.append("\n".join(lines_out))
     return "".join(out)
+
+
+def _wrap_bare_identifiers_in_line(line: str, pattern: re.Pattern[str]) -> str:
+    """Wrap each regex-matched bare identifier in backticks, skipping code spans."""
+    code_span_re = re.compile(r"(`[^`]*`|\[[^\]]*\]\([^)]*\))")
+    parts = code_span_re.split(line)
+    out: list[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            out.append(part)  # already inside a code span or markdown link
+            continue
+        out.append(pattern.sub(lambda m: f"`{m.group(0)}`", part))
+    return "".join(out)
+
+
+def apply_backtick_fix(draft: str, cfg: RuleConfig) -> str:
+    """Return ``draft`` with every bare code-identifier wrapped in backticks.
+
+    The wrap is safe: markdown inline code has no effect on prose rendering
+    beyond visual emphasis, and once wrapped the token is masked from further
+    lint detection (bare_identifier, too_many_identifiers, and the identifier-
+    aware branch of sentence_too_long all rely on the same masking).
+    """
+    pattern = re.compile(cfg.identifier_pattern)
+    # Preserve fenced code blocks verbatim.
+    parts = re.split(r"(```.*?```)", draft, flags=re.DOTALL)
+    out: list[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            out.append(part)
+            continue
+        lines_out = [_wrap_bare_identifiers_in_line(line, pattern) for line in part.split("\n")]
+        out.append("\n".join(lines_out))
+    return "".join(out)
