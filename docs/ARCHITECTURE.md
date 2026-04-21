@@ -155,7 +155,7 @@ hook の性能計測。Stop < 50ms / SessionStart < 100ms（mean）を目標に 
 
 ## トレードオフ
 
-- **トークン消費の増分（実測値, n=91, 2026-04-21 時点）**: `ja-output-stats overhead --window 30` による実測で、**avg output-factor = 3.11× baseline（= +211% output tokens over no-finalize baseline）**。75% のターンが 1-2 call で完結し、重度 retry（5+ call）は 8%。モデルは「draft が tool 引数と最終メッセージの 2 箇所で出力される → output ≈ (retries+2) × draft per turn」。実測値は運用とともに変動するため、`uv run ja-output-stats overhead` で随時再計測できる（archive + active を連結読みするので履歴は失われない）
+- **トークン消費の増分（v0.3.7/v0.3.8 実測値, n=62, 2026-04-21 時点）**: `ja-output-stats overhead --window 30` で計測すると **avg output-factor = 3.00× baseline**（= +200% output tokens over no-finalize baseline）。前世代 v0.2.22 時点の 3.58× から 16% 改善。87% のターンが 1-2 call で完結、fast-path 発火率は全体で 12.9%（v0.3.8 後の schema v2 サブサンプル n=14 に絞ると 57% と 期待域 40-60% に回帰、初回サンプルの 0% はノイズだった）。モデルは「draft が tool 引数と最終メッセージの 2 箇所で出力される → output ≈ (retries+2) × draft per turn」。実測値は運用とともに変動するため `uv run ja-output-stats overhead` で随時再計測できる（archive + active を連結読みするので履歴は失われない）。v0.3.8 からは `ja-output-stats show` がルール別分布と fast-path miss 診断を表示し、期待域から外れた場合の原因（`banned_term` replacement 不足 vs rewrite residual）を切り分けできる
 - **形態素解析未採用**: 依存増・起動時間増を避けるためヒューリスティックで妥協。fugashi は将来拡張
 - **repo-local hook 非対応**（[Issue #17532](https://github.com/openai/codex/issues/17532)）: Codex 側のバグのためグローバル登録に限定
 - **再教育プロンプト 400 文字制限**: Codex の SessionStart stdout を消化するため短く固定。違反種別は上位 3 件のみ要約
