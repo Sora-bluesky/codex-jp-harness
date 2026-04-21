@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.19] - 2026-04-21
+
+v0.2.18 の `discover` 節は CLI コマンド中心で、Codex App から対話で使う手順が分かりにくいというフィードバックを受けた docs patch。初回利用者が迷わないよう、スキル経由の 8 ステップを README に明示する。
+
+### Changed
+- **README Section 4「候補の発掘（discover）」**を 2 ブロック構造に再構成:
+  - **推奨フロー（スキル経由、対話的）**: Codex 入力欄で `$` を押す → `$jp-harness-tune` を選ぶ → 意図 6 → paste or file → 1 語ずつ Y/N・言い換え・severity を応答 → `show` で確認、の 8 ステップを番号付きで明示。Codex 再起動不要の旨も併記。
+  - **CLI 単体（スクリプト / バッチで使う場合）**: 従来の bash 例はこちらに集約。
+
+### Notes
+- コード変更なし。130 件の pytest / ruff check は全通過。
+- 既存利用者への影響なし。`git pull` のみで反映される。
+
 ## [0.2.18] - 2026-04-21
 
 v0.2.17 の fast-path は `banned_terms.yaml` に入っている語しか直せず、実運用では fast-path 発火率が 3.1% に留まっていた。原因は Codex 出力に頻出する生英語（`preview` / `review` / `iframe` / `composer` / `overlay` / `drawer` / `context` / `harness` 等）がバンドル済み禁止語の範囲外だったこと。バンドル拡張ではプロジェクト固有の語彙差に追いつけないため、**観測ドラフトから候補を抽出して利用者ごとに育てる** フローへ舵を切る。

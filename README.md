@@ -242,6 +242,26 @@ codex-jp-tune discover --file <path>            # Codex 出力から候補を抽
 
 Codex の実際の出力には、バンドル済み禁止語に含まれない生英語（`preview` / `review` / `iframe` / `composer` / `overlay` / `context` / `drawer` など）が頻繁に混ざります。手動で 1 語ずつ追加するのは大変なので、`codex-jp-tune discover` が **貼ったドラフトから未登録の候補を頻度順で抽出**します。
 
+#### 推奨フロー（スキル経由、対話的）
+
+プロジェクトに馴染む語を対話で絞って登録するなら、Codex App / Codex CLI からスキルを呼ぶのが一番早いです。
+
+1. **Codex の入力欄で `$` を押す** → スキル一覧が開く（Codex のスキルは `/` ではなく `$` 記号で呼び出す仕様）
+2. **`$jp-harness-tune` を選ぶ**（対象語が先に決まっていれば続けて自然文で書いてよい。例: `$jp-harness-tune 最近の出力から禁止語候補を抽出したい`）
+3. スキルが意図を確認してくるので **「6. 候補抽出（discover）」** を選ぶ
+4. スキルの指示に従って **最近の Codex 応答を貼る**（paste）か、**ファイルパスを指定する**（例: `.claude/local/operator-handoff.md`）
+5. スキルが頻度上位の候補を TSV で提示する
+6. **1 語ずつ次を答える**:
+   - 追加するか（Y/N）— UI ラベルや製品名（`Back to Code`, `Ports` など）は N
+   - 推奨言い換え — スキルが自動提案する日本語を採用するか、別案を書く
+   - severity — 一般名詞は `ERROR`、業界カタカナ語なら `WARNING` で充分な場合もある
+7. 合意のたびにスキルが `codex-jp-tune add <term> --suggest "..." --severity ERROR` を実行する
+8. 最後に `codex-jp-tune show` で反映を確認。取り消したい語があれば `codex-jp-tune remove <term>`
+
+Codex の再起動は不要。MCP サーバーは override を毎回読み直します。次の `finalize` 呼び出しから追加した語が ERROR として検出され、fast-path で自動修正されます。
+
+#### CLI 単体（スクリプト / バッチで使う場合）
+
 ```bash
 # ログファイルから抽出（上位 20 語を TSV 出力）
 codex-jp-tune discover --file .claude/local/operator-handoff.md --top 20
@@ -253,9 +273,7 @@ cat recent-output.md | codex-jp-tune discover --stdin --top 20
 codex-jp-tune discover --file recent.md --format json --top 20
 ```
 
-出力列: `count` / `term` / `suggested_replacement`（辞書から自動補完）/ `first_context`。
-
-対話的に候補を追加するには `$jp-harness-tune` スキルを呼び出し、意図 **6. 候補抽出** を選んでください。スキルが 1 語ずつ追加可否・言い換え・severity を確認しながら `codex-jp-tune add` を繰り返します。
+出力列: `count` / `term` / `suggested_replacement`（辞書から自動補完）/ `first_context`。出力を見て手動で `codex-jp-tune add` を叩くこともできますが、判断を挟むためスキル経由を推奨します。
 
 ### Codex Skill `$jp-harness-tune` — チューニング専用の対話スキル
 
