@@ -136,6 +136,24 @@ if ([regex]::IsMatch($config, $codexHooksPattern)) {
     }
 }
 
+# 4. Remove the mode marker so a future install default re-enters the
+#    "new user" path and writes the current default rather than restoring
+#    the previous mode.
+$modeMarker = Join-Path $codexDir "state\jp-harness-mode"
+if (Test-Path $modeMarker) {
+    Remove-Item $modeMarker -Force
+    Write-Host "[ja-output-harness] Removed mode marker: $modeMarker" -ForegroundColor Green
+}
+
+# 5. Remove the SessionStart consumption cursor so a future install starts
+#    from a clean slate rather than resuming a stale offset against a
+#    different state layout.
+$cursorFile = Join-Path $codexDir "state\jp-harness-cursor.json"
+if (Test-Path $cursorFile) {
+    Remove-Item $cursorFile -Force
+    Write-Host "[ja-output-harness] Removed cursor file: $cursorFile" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "[ja-output-harness] Manual step (still required):" -ForegroundColor Yellow
 Write-Host "[ja-output-harness]   Edit ~/.codex/AGENTS.md and remove the quality-gate rule block." -ForegroundColor Yellow

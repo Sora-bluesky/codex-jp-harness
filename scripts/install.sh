@@ -14,6 +14,7 @@ FORCE=false
 SKIP_SKILL=false
 ENABLE_HOOKS=false
 FORCE_HOOKS=false
+MODE=""
 for arg in "$@"; do
   case "$arg" in
     --append-agents-rule) APPEND_AGENTS_RULE=true ;;
@@ -21,6 +22,8 @@ for arg in "$@"; do
     --skip-skill)         SKIP_SKILL=true ;;
     --enable-hooks)       ENABLE_HOOKS=true ;;
     --force-hooks)        FORCE_HOOKS=true ;;
+    --mode=*)             MODE="${arg#--mode=}" ;;
+    --mode)               echo "[ja-output-harness] --mode requires =value (e.g. --mode=lite)" >&2; exit 1 ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -43,7 +46,6 @@ fi
 CODEX_DIR="$HOME/.codex"
 CONFIG_PATH="$CODEX_DIR/config.toml"
 AGENTS_PATH="$CODEX_DIR/AGENTS.md"
-RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
 SKILL_SRC="$REPO_ROOT/skills/jp-harness-tune/SKILL.md"
 SKILL_DEST_DIR="$CODEX_DIR/skills/jp-harness-tune"
 SKILL_DEST_PATH="$SKILL_DEST_DIR/SKILL.md"
@@ -51,6 +53,59 @@ HOOKS_JSON_PATH="$CODEX_DIR/hooks.json"
 HOOKS_TEMPLATE="$REPO_ROOT/config/hooks.example.json"
 STOP_HOOK_PATH="$REPO_ROOT/hooks/stop-finalize-check.sh"
 START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
+STATE_DIR="$CODEX_DIR/state"
+MODE_MARKER="$STATE_DIR/jp-harness-mode"
+
+# Mode resolution: explicit flag > marker file > auto-detect.
+#
+# Auto-detect avoids the surprise where fresh installs default to "lite"
+# but the user only runs Codex App, where lite mode cannot be enabled
+# (Codex 0.122's SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT allowlist
+#  excludes codex_hooks; see codex-rs/app-server/src/config_api.rs:45).
+# Picking strict for App-only environments keeps v0.3.x-equivalent quality
+# gating instead of silently installing a no-op lite mode.
+detect_recommended_mode() {
+  if command -v codex >/dev/null 2>&1; then
+    if codex features list >/dev/null 2>&1; then
+      echo "lite"
+      return 0
+    fi
+  fi
+  echo "strict"
+}
+
+if [[ -z "$MODE" && -f "$MODE_MARKER" ]]; then
+  # Upgrade / reinstall: preserve the user's prior explicit choice.
+  MODE="$(tr -d '[:space:]' < "$MODE_MARKER")"
+fi
+if [[ -z "$MODE" ]]; then
+  MODE="$(detect_recommended_mode)"
+  echo "[ja-output-harness] Auto-detected recommended mode: $MODE"
+  if [[ "$MODE" == "strict" ]]; then
+    echo "[ja-output-harness]   Reason: Codex CLI not detected (or \`codex features list\` failed)." >&2
+    echo "[ja-output-harness]   Codex App alone cannot enable lite mode — upstream feature allowlist limitation." >&2
+    echo "[ja-output-harness]   Override with --mode=lite to install the lite hook anyway (useful if you also use Codex CLI)." >&2
+  fi
+fi
+case "$MODE" in
+  lite|strict-lite|strict) ;;
+  *) echo "[ja-output-harness] Invalid --mode=$MODE (expected lite, strict-lite, strict)." >&2; exit 1 ;;
+esac
+echo "[ja-output-harness] Mode: $MODE"
+
+if [[ "$MODE" == "strict" ]]; then
+  RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
+  RULE_MARKER='mcp__jp_lint__finalize'
+else
+  RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule_lite.md"
+  RULE_MARKER='ja-output-harness lite'
+fi
+
+# lite / strict-lite require hooks (the Stop hook does the lint work).
+if [[ "$MODE" != "strict" && "$ENABLE_HOOKS" != "true" ]]; then
+  echo "[ja-output-harness] Mode '$MODE' requires hooks. Enabling."
+  ENABLE_HOOKS=true
+fi
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
@@ -86,38 +141,102 @@ if grep -q '^\[mcp_servers\.jp_lint\]' "$CONFIG_PATH"; then
   rm -f "$tmp"
 fi
 
-# Register MCP server entry. Backslashes in paths are TOML-escaped.
-python_path_escaped="${VENV_PYTHON//\\/\\\\}"
-{
-  echo ""
-  echo "[mcp_servers.jp_lint]"
-  echo "command = \"${python_path_escaped}\""
-  echo 'args = ["-m", "ja_output_harness.server"]'
-} >> "$CONFIG_PATH"
-echo "[ja-output-harness] Registered [mcp_servers.jp_lint] with venv Python: $VENV_PYTHON"
+if [[ "$MODE" == "strict" ]]; then
+  # Register MCP server entry. Backslashes in paths are TOML-escaped.
+  python_path_escaped="${VENV_PYTHON//\\/\\\\}"
+  {
+    echo ""
+    echo "[mcp_servers.jp_lint]"
+    echo "command = \"${python_path_escaped}\""
+    echo 'args = ["-m", "ja_output_harness.server"]'
+  } >> "$CONFIG_PATH"
+  echo "[ja-output-harness] Registered [mcp_servers.jp_lint] (strict mode) with venv Python: $VENV_PYTHON"
+else
+  echo "[ja-output-harness] Skipped [mcp_servers.jp_lint] registration (mode=$MODE — local lint only)."
+fi
 
-# AGENTS.md rule handling
+# Write the mode marker so the Stop hook can branch on it at runtime.
+mkdir -p "$STATE_DIR"
+printf '%s' "$MODE" > "$MODE_MARKER"
+echo "[ja-output-harness] Wrote mode marker: $MODE_MARKER = $MODE"
+
+# AGENTS.md rule handling — marker-wrapped managed block so re-installs
+# replace atomically regardless of the prior mode (gpt-5.4 review BLOCKER #1).
+BEGIN_MARKER='<!-- BEGIN ja-output-harness managed block -->'
+END_MARKER='<!-- END ja-output-harness managed block -->'
+# Match both the current repo name (ja-output-harness) AND the pre-v0.3.0
+# name (codex-jp-harness) so users who installed under the old name also
+# migrate cleanly when re-running install.
+LEGACY_DETECT_REGEX='^## 日本語技術文の品質ゲート \((ja-output-harness|codex-jp-harness)'
+
 if [[ -f "$AGENTS_PATH" ]]; then
-  if grep -q 'mcp__jp_lint__finalize' "$AGENTS_PATH"; then
-    echo "[ja-output-harness] AGENTS.md already references finalize rule. OK."
-  elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
+  HAS_MANAGED="no"; HAS_LEGACY="no"
+  if grep -qF "$BEGIN_MARKER" "$AGENTS_PATH"; then HAS_MANAGED="yes"; fi
+  if grep -qE "$LEGACY_DETECT_REGEX" "$AGENTS_PATH"; then HAS_LEGACY="yes"; fi
+
+  if [[ "$HAS_MANAGED" == "yes" ]] || { [[ "$APPEND_AGENTS_RULE" == "true" ]] && [[ "$HAS_LEGACY" == "yes" || "$HAS_MANAGED" == "yes" ]]; }; then
     if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
-      echo "[ja-output-harness] agents_rule.md not found at $RULE_BLOCK_PATH" >&2
+      echo "[ja-output-harness] rule file not found at $RULE_BLOCK_PATH" >&2
       exit 1
     fi
-    # Strip HTML comment block
     rule_stripped="$(awk '/<!--/,/-->/{next} {print}' "$RULE_BLOCK_PATH")"
-    # Ensure AGENTS.md ends with a newline before appending
+    HOOK_PY="${HOOK_PY:-python3}"; command -v "$HOOK_PY" >/dev/null 2>&1 || HOOK_PY="python"
+    MANAGED_STATUS=$(AGENTS_PATH="$AGENTS_PATH" \
+      BEGIN_MARKER="$BEGIN_MARKER" END_MARKER="$END_MARKER" \
+      RULE_STRIPPED="$rule_stripped" \
+      HAS_MANAGED="$HAS_MANAGED" HAS_LEGACY="$HAS_LEGACY" \
+      "$HOOK_PY" - <<'PY'
+import os, re, pathlib
+
+agents_path = pathlib.Path(os.environ["AGENTS_PATH"])
+begin = os.environ["BEGIN_MARKER"]
+end = os.environ["END_MARKER"]
+rule = os.environ["RULE_STRIPPED"].lstrip()
+has_managed = os.environ["HAS_MANAGED"] == "yes"
+has_legacy = os.environ["HAS_LEGACY"] == "yes"
+
+content = agents_path.read_text(encoding="utf-8")
+if has_managed:
+    managed_re = re.compile(r"\r?\n?" + re.escape(begin) + r".*?" + re.escape(end) + r"\r?\n?", re.DOTALL)
+    content = managed_re.sub("\n", content)
+if has_legacy:
+    # Remove legacy block even when the managed marker is also present —
+    # partial migrations can leave both. See install.ps1 for the parallel
+    # invariant.
+    legacy_re = re.compile(
+        r"(?sm)^## 日本語技術文の品質ゲート \((?:ja-output-harness|codex-jp-harness)[^\n]*\n.*?(?=\r?\n## |\Z)"
+    )
+    content = legacy_re.sub("", content)
+
+content = content.rstrip() + "\n"
+wrapped = f"{begin}\n{rule}\n{end}\n"
+agents_path.write_text(content + wrapped, encoding="utf-8")
+print("replaced")
+PY
+)
+    echo "[ja-output-harness] Replaced managed rule block in AGENTS.md (mode=$MODE). status=$MANAGED_STATUS"
+  elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
+    if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
+      echo "[ja-output-harness] rule file not found at $RULE_BLOCK_PATH" >&2
+      exit 1
+    fi
+    rule_stripped="$(awk '/<!--/,/-->/{next} {print}' "$RULE_BLOCK_PATH")"
     if [[ -n "$(tail -c1 "$AGENTS_PATH")" ]]; then
       printf '\n' >> "$AGENTS_PATH"
     fi
-    printf '%s\n' "$rule_stripped" >> "$AGENTS_PATH"
-    echo "[ja-output-harness] Appended finalize rule block to AGENTS.md"
+    {
+      printf '%s\n' "$BEGIN_MARKER"
+      printf '%s\n' "$rule_stripped"
+      printf '%s\n' "$END_MARKER"
+    } >> "$AGENTS_PATH"
+    echo "[ja-output-harness] Appended managed rule block to AGENTS.md (mode=$MODE)."
+  elif [[ "$HAS_LEGACY" == "yes" ]]; then
+    echo "[ja-output-harness] AGENTS.md contains a pre-v0.4.0 rule block. Re-run with --append-agents-rule to migrate."
   else
     echo ""
-    echo "[ja-output-harness] AGENTS.md does not yet reference the finalize rule."
+    echo "[ja-output-harness] AGENTS.md does not yet reference the $MODE-mode rule."
     echo "[ja-output-harness] Re-run with --append-agents-rule to append automatically,"
-    echo "[ja-output-harness] or manually append the content of config/agents_rule.md."
+    echo "[ja-output-harness] or manually append the content of $RULE_BLOCK_PATH."
   fi
 else
   echo "[ja-output-harness] AGENTS.md not found; skipping rule handling."
@@ -198,15 +317,35 @@ if [[ "$ENABLE_HOOKS" == "true" ]]; then
   elif [[ ! -f "$STOP_HOOK_PATH" || ! -f "$START_HOOK_PATH" || ! -f "$HOOKS_TEMPLATE" ]]; then
     echo "[ja-output-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
   else
-    # Ensure codex_hooks = true in config.toml (idempotent)
-    if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
-      echo "[ja-output-harness] codex_hooks = true already set in config.toml."
-    else
-      if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
-        printf '\n' >> "$CONFIG_PATH"
+    # Enable the codex_hooks feature. On Codex >= 0.122 this is a
+    # feature flag gated by `codex features enable` — writing
+    # `[features].codex_hooks = true` directly into config.toml does NOT
+    # enable the hooks engine because the feature is at stage "under
+    # development" (codex-rs/features/src/lib.rs). Use the official CLI
+    # when available; fall back to raw append for older builds so
+    # existing v0.3.x users still work.
+    hooks_enabled="false"
+    if command -v codex >/dev/null 2>&1 && codex features list >/dev/null 2>&1; then
+      if codex features enable codex_hooks >/dev/null 2>&1; then
+        hooks_enabled="true"
+        echo "[ja-output-harness] Enabled codex_hooks feature via \`codex features enable\`."
+      else
+        echo "[ja-output-harness] \`codex features enable codex_hooks\` failed; falling back to config.toml append." >&2
       fi
-      printf 'codex_hooks = true\n' >> "$CONFIG_PATH"
-      echo "[ja-output-harness] Set codex_hooks = true in config.toml."
+    fi
+
+    if [[ "$hooks_enabled" != "true" ]]; then
+      # Fallback: raw append for Codex < 0.122 (pre-date the
+      # UnderDevelopment feature gate).
+      if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
+        echo "[ja-output-harness] codex_hooks = true already in config.toml (fallback path)."
+      else
+        if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
+          printf '\n' >> "$CONFIG_PATH"
+        fi
+        printf '\n[features]\ncodex_hooks = true\n' >> "$CONFIG_PATH"
+        echo "[ja-output-harness] Appended [features] codex_hooks = true (fallback for pre-0.122 Codex)."
+      fi
     fi
 
     # Build absolute commands
@@ -237,6 +376,13 @@ PY
       elif [[ "$FORCE_HOOKS" == "true" ]]; then
         printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
         echo "[ja-output-harness] Overwrote existing hooks.json (--force-hooks)."
+      elif [[ "$MODE" == "lite" || "$MODE" == "strict-lite" ]]; then
+        # lite / strict-lite rely on the Stop hook for enforcement. A stale
+        # hooks.json silently disables the harness, so refuse to proceed
+        # instead of leaving the user unprotected (gpt-5.4 review MEDIUM #4).
+        echo "[ja-output-harness] Mode '$MODE' requires a matching hooks.json but $HOOKS_JSON_PATH differs from the bundled template." >&2
+        echo "[ja-output-harness] Re-run with --force-hooks to overwrite, or merge $HOOKS_TEMPLATE manually." >&2
+        exit 1
       else
         echo "[ja-output-harness] Existing hooks.json at $HOOKS_JSON_PATH differs from bundled template." >&2
         echo "[ja-output-harness] Review and re-run with --force-hooks to overwrite, or merge manually." >&2

@@ -323,6 +323,33 @@ class TestVialationSerialization:
         d = v.to_dict()
         assert "category" not in d
 
+    def test_to_dict_drops_category_even_when_populated(self):
+        v = Violation(
+            rule="banned_term", line=1, term="x", category="programming_concept"
+        )
+        d = v.to_dict()
+        assert "category" not in d
+
+    def test_to_dict_drops_fix_field(self):
+        # `fix` is duplicate of AGENTS.md per-rule instructions; drop to
+        # save ~25 B per violation (v0.4.0 slim).
+        v = Violation(
+            rule="bare_identifier",
+            line=1,
+            token="src/foo.py",
+            fix="バッククォートで囲む",
+        )
+        d = v.to_dict()
+        assert "fix" not in d
+        assert d["token"] == "src/foo.py"
+
+    def test_to_dict_truncates_snippet(self):
+        long_line = "a" * 200
+        v = Violation(rule="banned_term", line=1, term="x", snippet=long_line)
+        d = v.to_dict()
+        assert len(d["snippet"]) == 50
+        assert d["snippet"] == "a" * 50
+
 
 class TestExtractReplacement:
     def test_empty_returns_none(self):

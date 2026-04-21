@@ -7,10 +7,11 @@ than relying on design-time estimates.
 
 Commands
 --------
-- ``path``      print the metrics jsonl path
-- ``show``      distribution of draft size, violations, elapsed time
-- ``overhead``  estimate same-turn retry overhead from time-clustered entries
-- ``tail N``    show the last N raw entries (for spot checks)
+- ``path``       print the metrics jsonl path
+- ``show``       distribution of draft size, violations, elapsed time
+- ``overhead``   estimate same-turn retry overhead from time-clustered entries
+- ``tail N``     show the last N raw entries (for spot checks)
+- ``ab-report``  compare ok rate between two date ranges with Wilson 95% CI
 """
 
 from __future__ import annotations
@@ -18,12 +19,31 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import math
 import statistics
 import sys
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from ja_output_harness.metrics import archive_path, metrics_path
+from ja_output_harness.metrics import archive_path, lite_metrics_path, metrics_path
+
+
+def _wilson_95(ok: int, n: int) -> tuple[float, float]:
+    """Wilson 95% confidence interval (z=1.96) for a binary proportion.
+
+    Wilson is used instead of normal-approximation because the lite-mode
+    dogfood buckets are small (n=20-100) and the true ok rate can sit
+    near the boundary (70-95%) where the normal CI misbehaves.
+    """
+    if n == 0:
+        return 0.0, 0.0
+    z = 1.96
+    p = ok / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return max(0.0, centre - half), min(1.0, centre + half)
 
 
 def _iter_file(path: Path) -> Iterator[dict]:
@@ -113,8 +133,6 @@ def cmd_show(args: argparse.Namespace) -> int:
     )
 
     # Rule distribution + fast-path miss diagnosis (schema v2+).
-    from collections import Counter
-
     rule_totals: Counter[str] = Counter()
     miss_rules: Counter[str] = Counter()
     miss_entries = 0
@@ -195,8 +213,6 @@ def cmd_overhead(args: argparse.Namespace) -> int:
     if current:
         bursts.append(current)
 
-    from collections import Counter
-
     lengths = [len(b) for b in bursts]
     dist = Counter(lengths)
     avg = statistics.mean(lengths) if lengths else 0.0
@@ -233,6 +249,218 @@ def cmd_overhead(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_date_range(s: str) -> tuple[datetime.datetime, datetime.datetime]:
+    """Parse ``YYYY-MM-DD:YYYY-MM-DD`` (inclusive both ends, UTC).
+
+    Returns (start_inclusive, end_exclusive). The end date is bumped by
+    one day so a caller filtering ``start <= ts < end`` captures the full
+    final day.
+    """
+    parts = s.split(":")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(f"Invalid range '{s}'. Expected YYYY-MM-DD:YYYY-MM-DD.")
+    try:
+        start = datetime.datetime.strptime(parts[0], "%Y-%m-%d")
+        end = datetime.datetime.strptime(parts[1], "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError(f"Invalid date in '{s}'. Use YYYY-MM-DD.") from exc
+    if end < start:
+        raise ValueError(f"Range end earlier than start: '{s}'.")
+    return (
+        start.replace(tzinfo=datetime.UTC),
+        (end + datetime.timedelta(days=1)).replace(tzinfo=datetime.UTC),
+    )
+
+
+def _summarize(entries: list[dict]) -> dict:
+    """Compute ok rate, Wilson CI and aggregated rule_counts for a bucket."""
+    n = len(entries)
+    ok = sum(1 for e in entries if e.get("ok"))
+    lo, hi = _wilson_95(ok, n)
+    agg: Counter[str] = Counter()
+    for e in entries:
+        rc = e.get("rule_counts") or {}
+        if not isinstance(rc, dict):
+            continue
+        for rule, v in rc.items():
+            try:
+                agg[str(rule)] += int(v)
+            except (TypeError, ValueError):
+                continue
+    return {
+        "n": n,
+        "ok": ok,
+        "rate": (ok / n) if n else 0.0,
+        "ci_lo": lo,
+        "ci_hi": hi,
+        "rule_counts": agg,
+    }
+
+
+def _source_entries(source: str) -> tuple[Path, Iterator[dict]]:
+    """Resolve the jsonl path for ``source`` and yield its entries.
+
+    ``metrics`` reads archive + active so rotated history is preserved.
+    ``lite`` reads the active file only — the lite jsonl is not rotated
+    yet (v0.4.1 will share ``_rotate_lock``).
+    """
+    if source == "metrics":
+        path = metrics_path()
+        return path, _read_entries(path)
+    if source == "lite":
+        path = lite_metrics_path()
+        return path, _iter_file(path)
+    raise ValueError(f"Unknown source '{source}'. Expected 'lite' or 'metrics'.")
+
+
+DIAGNOSTIC_SESSIONS = frozenset({"diag"})
+MIN_DECIDABLE_N = 20
+
+
+def _ranges_overlap(
+    b_start: datetime.datetime,
+    b_end: datetime.datetime,
+    t_start: datetime.datetime,
+    t_end: datetime.datetime,
+) -> bool:
+    """Half-open interval overlap: ``[b_start, b_end) ∩ [t_start, t_end)``."""
+    return b_start < t_end and t_start < b_end
+
+
+def _decision_for_bucket(n: int, ci_lo: float) -> str:
+    """Return the v0.4.0 dogfood decision label.
+
+    Guards against shipping on small-sample noise by
+    (a) requiring ``n >= MIN_DECIDABLE_N``, and
+    (b) comparing the Wilson **lower bound** — not the point estimate —
+        against the 50% / 70% thresholds. With n=1 and a single success
+        the point estimate is 100% but the lower bound is ~2.5%, so the
+        decision comes out as "not ready" rather than "OK to ship"
+        (gpt-5.4 review v0.4.0 MAJOR #4).
+    """
+    if n < MIN_DECIDABLE_N:
+        return (
+            f"inconclusive (n={n} < {MIN_DECIDABLE_N}); collect at least"
+            f" {MIN_DECIDABLE_N} samples before deciding."
+        )
+    if ci_lo >= 0.70:
+        return "lite default OK to ship (Wilson lower bound >= 70%)."
+    if ci_lo >= 0.50:
+        return "consider strict-lite default (Wilson lower bound 50-70%)."
+    return "lite default NOT ready; keep strict as default or iterate."
+
+
+def cmd_ab_report(args: argparse.Namespace) -> int:
+    """Compare ok rate between a baseline and a test date range.
+
+    Lifts ``.references/dogfood-measure.py`` into the CLI so v0.4.0 dogfood
+    buckets can be split / compared without a scratch script. Works on
+    lite jsonl (default) or the strict-mode metrics jsonl via ``--source``.
+    """
+    try:
+        b_start, b_end = _parse_date_range(args.baseline)
+        t_start, t_end = _parse_date_range(args.test)
+        path, entries_iter = _source_entries(args.source)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if _ranges_overlap(b_start, b_end, t_start, t_end) and not args.allow_overlap:
+        print(
+            "error: baseline and test ranges overlap; the same entry would be"
+            " counted in both buckets. Pass --allow-overlap to force it.",
+            file=sys.stderr,
+        )
+        return 2
+
+    excluded = set(DIAGNOSTIC_SESSIONS)
+    if args.exclude_session:
+        for s in args.exclude_session.split(","):
+            s = s.strip()
+            if s:
+                excluded.add(s)
+
+    baseline: list[dict] = []
+    test: list[dict] = []
+    skipped_ts = 0
+    skipped_session = 0
+    for e in entries_iter:
+        if excluded and str(e.get("session", "")) in excluded:
+            skipped_session += 1
+            continue
+        ts = _parse_ts(e.get("ts", ""))
+        if ts is None:
+            skipped_ts += 1
+            continue
+        if b_start <= ts < b_end:
+            baseline.append(e)
+        if t_start <= ts < t_end:
+            test.append(e)
+
+    if not baseline and not test:
+        print(f"No entries in either range at {path}", file=sys.stderr)
+        if skipped_session or skipped_ts:
+            print(
+                f"  (skipped session={skipped_session}, unparseable ts={skipped_ts})",
+                file=sys.stderr,
+            )
+        return 1
+
+    b = _summarize(baseline)
+    t = _summarize(test)
+
+    print(f"source:  {args.source}  ({path})")
+    if excluded:
+        print(f"excluded sessions: {', '.join(sorted(excluded))}")
+    if skipped_session or skipped_ts:
+        print(f"skipped: session={skipped_session}, unparseable ts={skipped_ts}")
+    print()
+    _print_bucket("Baseline", args.baseline, b)
+    print()
+    _print_bucket("Test    ", args.test, t)
+    print()
+
+    if b["n"] == 0:
+        print("Baseline empty — cannot compare.")
+    elif t["n"] == 0:
+        print("Test empty — cannot compare.")
+    else:
+        delta_pp = (t["rate"] - b["rate"]) * 100
+        direction = "higher" if delta_pp > 0 else ("lower" if delta_pp < 0 else "equal")
+        print(f"Delta (test - baseline): {delta_pp:+.1f} pp  ({direction})")
+        ci_overlap = not (b["ci_hi"] < t["ci_lo"] or t["ci_hi"] < b["ci_lo"])
+        if ci_overlap:
+            print(
+                "CI overlap: Wilson 95% CIs overlap — difference is not"
+                " conclusive; collect more samples."
+            )
+        else:
+            print(
+                "CI overlap: Wilson 95% CIs do not overlap — descriptive signal"
+                " only, not a two-proportion significance test."
+            )
+
+        print()
+        print(f"DECISION (from test bucket): {_decision_for_bucket(t['n'], t['ci_lo'])}")
+    return 0
+
+
+def _print_bucket(label: str, range_str: str, s: dict) -> None:
+    n = s["n"]
+    if n == 0:
+        print(f"{label} ({range_str}): no entries")
+        return
+    print(
+        f"{label} ({range_str}): n={n}  ok={s['ok']} ({100 * s['rate']:.1f}%)"
+        f"  Wilson 95% CI: [{100 * s['ci_lo']:.1f}%, {100 * s['ci_hi']:.1f}%]"
+    )
+    if s["rule_counts"]:
+        width = max(len(r) for r in s["rule_counts"]) + 2
+        print("  top rules:")
+        for rule, count in s["rule_counts"].most_common(5):
+            print(f"    {rule:<{width}} {count}")
+
+
 def cmd_tail(args: argparse.Namespace) -> int:
     path = metrics_path()
     entries = list(_read_entries(path))
@@ -267,6 +495,49 @@ def build_parser() -> argparse.ArgumentParser:
     t = sub.add_parser("tail", help="print the last N entries")
     t.add_argument("n", nargs="?", default=10, type=int, help="N (default 10)")
     t.set_defaults(func=cmd_tail)
+
+    ab = sub.add_parser(
+        "ab-report",
+        help="compare ok rate between two date ranges with Wilson 95% CI",
+    )
+    ab.add_argument(
+        "--baseline",
+        required=True,
+        metavar="YYYY-MM-DD:YYYY-MM-DD",
+        help="Baseline date range (UTC, inclusive both ends).",
+    )
+    ab.add_argument(
+        "--test",
+        required=True,
+        metavar="YYYY-MM-DD:YYYY-MM-DD",
+        help="Test date range (UTC, inclusive both ends).",
+    )
+    ab.add_argument(
+        "--source",
+        choices=("lite", "metrics"),
+        default="lite",
+        help="Which jsonl to read (default: lite — the v0.4.0 dogfood stream).",
+    )
+    ab.add_argument(
+        "--allow-overlap",
+        action="store_true",
+        help=(
+            "Permit baseline and test ranges to overlap. By default overlapping"
+            " ranges are rejected because the same entry would be counted in"
+            " both buckets."
+        ),
+    )
+    ab.add_argument(
+        "--exclude-session",
+        default="",
+        metavar="ID[,ID...]",
+        help=(
+            "Comma-separated session IDs to skip in addition to the built-in"
+            f" diagnostic set {sorted(DIAGNOSTIC_SESSIONS)}. Useful for removing"
+            " synthetic hook invocations from a dogfood bucket."
+        ),
+    )
+    ab.set_defaults(func=cmd_ab_report)
     return parser
 
 
