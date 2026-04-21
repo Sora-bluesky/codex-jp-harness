@@ -46,3 +46,4 @@ config/banned_terms.local.yaml
 # Internal development notes (not part of the public package)
 HANDOFF.md
 handoff.md
+.references/
