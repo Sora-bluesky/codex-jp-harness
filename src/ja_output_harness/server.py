@@ -14,8 +14,8 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from codex_jp_harness import metrics
-from codex_jp_harness.rules import (
+from ja_output_harness import metrics
+from ja_output_harness.rules import (
     Violation,
     apply_auto_fix,
     apply_backtick_fix,

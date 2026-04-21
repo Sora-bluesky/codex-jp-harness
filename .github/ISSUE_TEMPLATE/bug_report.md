@@ -29,7 +29,7 @@ labels: bug
 - Python version: (`python --version`)
 - uv version: (`uv --version`)
 - Codex version (CLI or App):
-- codex-jp-harness version: (commit hash or tag)
+- ja-output-harness version: (commit hash or tag)
 
 ## ログ・スクリーンショット
 

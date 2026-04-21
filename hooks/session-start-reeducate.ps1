@@ -1,4 +1,4 @@
-# codex-jp-harness: SessionStart hook
+# ja-output-harness: SessionStart hook
 #
 # Reads ~/.codex/state/jp-harness.jsonl, filters un-expired un-consumed entries,
 # emits a reeducation prompt (hard cap 400 chars) only when source is "startup"
@@ -70,7 +70,7 @@ try {
     }
     $detail = ($parts -join '、')
 
-    $msg = "[codex-jp-harness] 前回セッションで mcp__jp_lint__finalize の呼び忘れを検出しました。" `
+    $msg = "[ja-output-harness] 前回セッションで mcp__jp_lint__finalize の呼び忘れを検出しました。" `
          + "内訳: $detail。" `
          + "日本語応答を返す前に必ず finalize を呼んでください。" `
          + "除外は 4 パターンのみ（コード単独 / 20字以内相槌 / yes-no / 日本語なし）。迷ったら呼ぶ。"
@@ -86,7 +86,7 @@ try {
     exit 0
 } catch {
     try {
-        [Console]::Error.WriteLine("[codex-jp-harness] session-start-reeducate error: $_")
+        [Console]::Error.WriteLine("[ja-output-harness] session-start-reeducate error: $_")
     } catch {}
     exit 0
 }

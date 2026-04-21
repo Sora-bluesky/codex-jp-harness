@@ -1,13 +1,13 @@
 ---
 name: jp-harness-tune
-description: codex-jp-harness の jp_lint ルールを対話的にチューニングする。利用者が違反に対して無効化・severity 調整・独自禁止語の追加を判断したい時に、安易に緩めないよう判断支援を挟んでから codex-jp-tune CLI を実行する。
+description: ja-output-harness の jp_lint ルールを対話的にチューニングする。利用者が違反に対して無効化・severity 調整・独自禁止語の追加を判断したい時に、安易に緩めないよう判断支援を挟んでから ja-output-tune CLI を実行する。
 ---
 
 # jp-harness-tune — jp_lint ルールの対話チューニング
 
-codex-jp-harness を運用していると「プロジェクト文脈では避けたくない語が検出される」「逆に固有の避けたい語が検出されない」というケースに遭遇する。このスキルは利用者の判断を対話で引き出し、結果を `codex-jp-tune` CLI で `~/.codex/jp_lint.yaml` に反映する。
+ja-output-harness を運用していると「プロジェクト文脈では避けたくない語が検出される」「逆に固有の避けたい語が検出されない」というケースに遭遇する。このスキルは利用者の判断を対話で引き出し、結果を `ja-output-tune` CLI で `~/.codex/jp_lint.yaml` に反映する。
 
-**前提**: `codex-jp-harness` がインストール済みで、`codex-jp-tune` が PATH から実行できる（`uv sync` 済み、または `pip install -e .` 済み）。
+**前提**: `ja-output-harness` がインストール済みで、`ja-output-tune` が PATH から実行できる（`uv sync` 済み、または `pip install -e .` 済み）。
 
 ## 呼び出し方
 
@@ -15,10 +15,10 @@ Codex（CLI / App）の入力欄で `$` を押してスキル一覧を開き、`
 
 ## Step 1: 現状の把握
 
-`codex-jp-tune show` を実行し、バンドル規則とユーザー override を merge した後の有効ルールを確認する。件数と、利用者が気にしている語の現在の severity だけを簡潔に示す。
+`ja-output-tune show` を実行し、バンドル規則とユーザー override を merge した後の有効ルールを確認する。件数と、利用者が気にしている語の現在の severity だけを簡潔に示す。
 
 ```bash
-codex-jp-tune show
+ja-output-tune show
 ```
 
 ## Step 2: 操作意図のヒアリング
@@ -50,9 +50,9 @@ codex-jp-tune show
 ### 2b-2. 候補を抽出
 
 ```bash
-codex-jp-tune discover --file <path> --top 20
+ja-output-tune discover --file <path> --top 20
 # もしくは stdin 経由:
-cat <path> | codex-jp-tune discover --stdin --top 20
+cat <path> | ja-output-tune discover --stdin --top 20
 ```
 
 出力は TSV 4 列: `count \t term \t 推奨言い換え \t 代表文脈`。
@@ -68,12 +68,12 @@ cat <path> | codex-jp-tune discover --stdin --top 20
 1 語ごとに合意が取れた時点で次を実行:
 
 ```bash
-codex-jp-tune add <term> --suggest "<言い換え>" --severity <ERROR|WARNING|INFO>
+ja-output-tune add <term> --suggest "<言い換え>" --severity <ERROR|WARNING|INFO>
 ```
 
 ### 2b-4. 反映確認とロールバック案内
 
-一括追加が終わったら `codex-jp-tune show` で反映を確認する。取り消したい語があれば `codex-jp-tune remove <term>` で戻せる旨を伝える。
+一括追加が終わったら `ja-output-tune show` で反映を確認する。取り消したい語があれば `ja-output-tune remove <term>` で戻せる旨を伝える。
 
 Codex の再起動は不要（MCP サーバーは override を毎回読み直す）。
 
@@ -91,21 +91,21 @@ Codex の再起動は不要（MCP サーバーは override を毎回読み直す
 
 ## Step 4: 操作の実行
 
-`codex-jp-tune` の該当サブコマンドを実行する:
+`ja-output-tune` の該当サブコマンドを実行する:
 
 ```bash
-codex-jp-tune disable <term>
-codex-jp-tune enable <term>
-codex-jp-tune set-severity <term> <ERROR|WARNING|INFO>
-codex-jp-tune add <term> --suggest "<置換ガイド>" --severity <ERROR|WARNING|INFO> [--category <label>]
-codex-jp-tune remove <term>
+ja-output-tune disable <term>
+ja-output-tune enable <term>
+ja-output-tune set-severity <term> <ERROR|WARNING|INFO>
+ja-output-tune add <term> --suggest "<置換ガイド>" --severity <ERROR|WARNING|INFO> [--category <label>]
+ja-output-tune remove <term>
 ```
 
 実行後、出力末尾に表示される override ファイルのパス（例: `~/.codex/jp_lint.yaml`）を利用者に伝える。
 
 ## Step 5: 反映確認
 
-`codex-jp-tune show` を再度走らせ、操作前後の差分（件数 / 対象語の severity）を簡潔に示す。
+`ja-output-tune show` を再度走らせ、操作前後の差分（件数 / 対象語の severity）を簡潔に示す。
 
 **Codex の再起動は不要**（CLI / App どちらでも）。MCP サーバーはリクエストごとに override を読み直すため、次の `finalize` 呼び出しから反映される。
 
@@ -113,9 +113,9 @@ codex-jp-tune remove <term>
 
 変更を戻す手段を最後に伝える:
 
-- `disable` の取り消し: `codex-jp-tune enable <term>`
-- `set-severity` の取り消し: `codex-jp-tune set-severity <term> ERROR`
-- `add` の取り消し: `codex-jp-tune remove <term>`
+- `disable` の取り消し: `ja-output-tune enable <term>`
+- `set-severity` の取り消し: `ja-output-tune set-severity <term> ERROR`
+- `add` の取り消し: `ja-output-tune remove <term>`
 - 全てリセット: `~/.codex/jp_lint.yaml` を削除
 
 ## やらないこと

@@ -15,7 +15,7 @@
 
 ````
 次のリポジトリを自分のマシンにインストールしてほしい:
-https://github.com/Sora-bluesky/codex-jp-harness
+https://github.com/Sora-bluesky/ja-output-harness
 
 手順:
 1. 任意のプロジェクト用ディレクトリに git clone する
@@ -41,8 +41,8 @@ https://github.com/Sora-bluesky/codex-jp-harness
 
 ```powershell
 cd C:\Users\<username>\Projects\
-git clone https://github.com/Sora-bluesky/codex-jp-harness.git
-cd codex-jp-harness
+git clone https://github.com/Sora-bluesky/ja-output-harness.git
+cd ja-output-harness
 ```
 
 ### 2. 依存をインストール
@@ -98,7 +98,7 @@ Codex セッションを開き、以下を入力:
 
 ```powershell
 # 直接起動してエラーを確認
-python C:\Users\<username>\Projects\codex-jp-harness\src\codex_jp_harness\server.py
+python C:\Users\<username>\Projects\ja-output-harness\src\ja_output_harness\server.py
 ```
 
 ### Codex が finalize を呼ばない

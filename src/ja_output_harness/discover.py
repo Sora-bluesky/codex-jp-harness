@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from codex_jp_harness.rules import (
+from ja_output_harness.rules import (
     _mask_markdown_links,
     _strip_code_blocks,
 )

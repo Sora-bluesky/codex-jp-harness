@@ -3,7 +3,7 @@
 Each call appends one JSON Lines entry to
 ``$CODEX_HOME/state/jp-harness-metrics.jsonl`` (default
 ``~/.codex/state/jp-harness-metrics.jsonl``). The server uses these to
-let ``codex-jp-stats`` compute draft size distribution, violations
+let ``ja-output-stats`` compute draft size distribution, violations
 distribution, elapsed time distribution, and a same-turn retry estimate.
 
 Write failures are silent: a failing log must never break the tool call
@@ -22,7 +22,7 @@ SCHEMA_VERSION = "1"
 
 # Rotate to <name>.1.jsonl once the active file exceeds this many bytes.
 # 20 MB holds ~80k entries at ~250 B each — long enough for monthly
-# aggregates and short enough to keep `codex-jp-stats show` fast.
+# aggregates and short enough to keep `ja-output-stats show` fast.
 DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 

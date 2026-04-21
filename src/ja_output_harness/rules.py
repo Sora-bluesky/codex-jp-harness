@@ -51,7 +51,7 @@ def resolve_user_config_path() -> Path:
 
     Priority:
       1. $CODEX_JP_HARNESS_USER_CONFIG (absolute path)
-      2. $XDG_CONFIG_HOME/codex-jp-harness/jp_lint.yaml
+      2. $XDG_CONFIG_HOME/ja-output-harness/jp_lint.yaml
       3. ~/.codex/jp_lint.yaml
     """
     env = os.environ.get("CODEX_JP_HARNESS_USER_CONFIG")
@@ -59,7 +59,7 @@ def resolve_user_config_path() -> Path:
         return Path(env).expanduser()
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
-        return Path(xdg).expanduser() / "codex-jp-harness" / "jp_lint.yaml"
+        return Path(xdg).expanduser() / "ja-output-harness" / "jp_lint.yaml"
     return Path.home() / ".codex" / "jp_lint.yaml"
 
 

@@ -1,10 +1,10 @@
-# AGENTS.md — codex-jp-harness
+# AGENTS.md — ja-output-harness
 
 > Codex がこのリポジトリで作業する時に参照する規約。グローバルの `~/.codex/AGENTS.md` に上書きせず、**追加の制約**として作用する。
 
 ## このリポジトリについて
 
-`codex-jp-harness` は、OpenAI Codex（CLI / App 両対応）の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。Codex CLI と Codex App は同じ Rust バイナリを共有し、`~/.codex/` 配下の設定を同じ場所から読むため、本ハーネスは両 surface に同時反映される。OpenAI が Codex 本体に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
+`ja-output-harness` は、OpenAI Codex（CLI / App 両対応）の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。Codex CLI と Codex App は同じ Rust バイナリを共有し、`~/.codex/` 配下の設定を同じ場所から読むため、本ハーネスは両 surface に同時反映される。OpenAI が Codex 本体に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
 
 ## 技術スタック
 
@@ -18,8 +18,8 @@
 
 | パス | 役割 |
 |---|---|
-| `src/codex_jp_harness/rules.py` | Lint ロジック（純関数） |
-| `src/codex_jp_harness/server.py` | FastMCP サーバー。`finalize` ツールを公開 |
+| `src/ja_output_harness/rules.py` | Lint ロジック（純関数） |
+| `src/ja_output_harness/server.py` | FastMCP サーバー。`finalize` ツールを公開 |
 | `config/banned_terms.yaml` | 禁止語・閾値の単一情報源 |
 | `config/agents_rule.md` | ユーザーの `~/.codex/AGENTS.md` に追記される品質ゲート規約本文 |
 | `scripts/install.{ps1,sh}` | OS 別インストーラー |
@@ -85,6 +85,6 @@ OpenAI が以下のいずれかを公式実装した時点で、このリポは 
 リリース時:
 
 1. `CHANGELOG.md` の `[Unreleased]` を `[X.Y.Z] - YYYY-MM-DD` に確定
-2. `pyproject.toml` と `src/codex_jp_harness/__init__.py` の version を上げる
+2. `pyproject.toml` と `src/ja_output_harness/__init__.py` の version を上げる
 3. PR → merge
 4. `gh release create vX.Y.Z --title "..." --notes-file ..." --target main`

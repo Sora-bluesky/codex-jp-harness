@@ -1,4 +1,4 @@
-# codex-jp-harness: banned terms & thresholds
+# ja-output-harness: banned terms & thresholds
 # Single source of truth for Japanese report quality gate rules.
 
 version: 2

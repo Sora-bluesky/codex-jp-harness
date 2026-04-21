@@ -1,4 +1,4 @@
-"""``codex-jp-stats`` — summarize the finalize metrics jsonl.
+"""``ja-output-stats`` — summarize the finalize metrics jsonl.
 
 Reads ``$CODEX_HOME/state/jp-harness-metrics.jsonl`` written by
 ``server.py`` and prints aggregates. Used to quantify real token /
@@ -23,7 +23,7 @@ import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from codex_jp_harness.metrics import archive_path, metrics_path
+from ja_output_harness.metrics import archive_path, metrics_path
 
 
 def _iter_file(path: Path) -> Iterator[dict]:
@@ -44,7 +44,7 @@ def _read_entries(path: Path) -> Iterator[dict]:
     """Yield entries from the archive (older) then the active file (newer).
 
     Reading both preserves chronological order and avoids losing the rotated
-    history from ``codex-jp-stats show`` / ``overhead``.
+    history from ``ja-output-stats show`` / ``overhead``.
     """
     archive = archive_path(path)
     yield from _iter_file(archive)
@@ -209,7 +209,7 @@ def cmd_tail(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="codex-jp-stats",
+        prog="ja-output-stats",
         description="Summarize finalize() metrics jsonl.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)

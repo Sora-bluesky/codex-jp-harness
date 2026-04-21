@@ -1,4 +1,4 @@
-# codex-jp-harness installer (Windows / PowerShell 7+)
+# ja-output-harness installer (Windows / PowerShell 7+)
 #
 # Registers the jp-lint MCP server in ~/.codex/config.toml and prompts the
 # user to add the finalize rule to ~/.codex/AGENTS.md (Phase A only; Phase C
@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 
 # Paths
 $repoRoot   = Split-Path -Parent $PSScriptRoot
-$serverPath = Join-Path $repoRoot "src\codex_jp_harness\server.py"
+$serverPath = Join-Path $repoRoot "src\ja_output_harness\server.py"
 $venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
 $skillSrc   = Join-Path $repoRoot "skills\jp-harness-tune\SKILL.md"
 $codexDir   = Join-Path $env:USERPROFILE ".codex"
@@ -62,7 +62,7 @@ $config = Get-Content $configPath -Raw
 # Remove any existing entry (idempotent re-install)
 if ($config -match '\[mcp_servers\.jp_lint\]') {
     if (-not $Force) {
-        Write-Host "[codex-jp-harness] [mcp_servers.jp_lint] already present. Rewriting to match current repo location." -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] [mcp_servers.jp_lint] already present. Rewriting to match current repo location." -ForegroundColor Yellow
     }
     $pattern = '(?ms)\r?\n\[mcp_servers\.jp_lint\].*?(?=\r?\n\[|\z)'
     $config = [regex]::Replace($config, $pattern, '')
@@ -76,17 +76,17 @@ $entry = @"
 
 [mcp_servers.jp_lint]
 command = "$escapedPython"
-args = ["-m", "codex_jp_harness.server"]
+args = ["-m", "ja_output_harness.server"]
 "@
 Add-Content -Path $configPath -Value $entry -NoNewline
-Write-Host "[codex-jp-harness] Registered [mcp_servers.jp_lint] with venv Python: $venvPython" -ForegroundColor Green
+Write-Host "[ja-output-harness] Registered [mcp_servers.jp_lint] with venv Python: $venvPython" -ForegroundColor Green
 
 # AGENTS.md rule handling
 $ruleBlockPath = Join-Path $repoRoot "config\agents_rule.md"
 if (Test-Path $agentsPath) {
     $agents = Get-Content $agentsPath -Raw
     if ($agents -match 'mcp__jp_lint__finalize') {
-        Write-Host "[codex-jp-harness] AGENTS.md already references finalize rule. OK." -ForegroundColor Green
+        Write-Host "[ja-output-harness] AGENTS.md already references finalize rule. OK." -ForegroundColor Green
     } elseif ($AppendAgentsRule) {
         if (-not (Test-Path $ruleBlockPath)) {
             Write-Error "agents_rule.md not found at $ruleBlockPath"
@@ -100,32 +100,32 @@ if (Test-Path $agentsPath) {
             Add-Content -Path $agentsPath -Value "`n" -NoNewline
         }
         Add-Content -Path $agentsPath -Value $rulePart -NoNewline
-        Write-Host "[codex-jp-harness] Appended finalize rule block to AGENTS.md" -ForegroundColor Green
+        Write-Host "[ja-output-harness] Appended finalize rule block to AGENTS.md" -ForegroundColor Green
     } else {
         Write-Host ""
-        Write-Host "[codex-jp-harness] AGENTS.md does not yet reference the finalize rule." -ForegroundColor Yellow
-        Write-Host "[codex-jp-harness] Re-run with -AppendAgentsRule to append automatically," -ForegroundColor Yellow
-        Write-Host "[codex-jp-harness] or manually append the content of config\agents_rule.md." -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] AGENTS.md does not yet reference the finalize rule." -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] Re-run with -AppendAgentsRule to append automatically," -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] or manually append the content of config\agents_rule.md." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "[codex-jp-harness] AGENTS.md not found; skipping rule handling." -ForegroundColor Yellow
+    Write-Host "[ja-output-harness] AGENTS.md not found; skipping rule handling." -ForegroundColor Yellow
 }
 
 # Skill placement
 if ($SkipSkill) {
-    Write-Host "[codex-jp-harness] Skipping skill placement (-SkipSkill)." -ForegroundColor Yellow
+    Write-Host "[ja-output-harness] Skipping skill placement (-SkipSkill)." -ForegroundColor Yellow
 } else {
     if (-not (Test-Path $skillDestDir)) {
         New-Item -ItemType Directory -Path $skillDestDir -Force | Out-Null
     }
     if (-not (Test-Path $skillDestPath)) {
         Copy-Item -Path $skillSrc -Destination $skillDestPath -Force
-        Write-Host "[codex-jp-harness] Installed skill: $skillDestPath" -ForegroundColor Green
+        Write-Host "[ja-output-harness] Installed skill: $skillDestPath" -ForegroundColor Green
     } else {
         $srcHash  = (Get-FileHash -Path $skillSrc       -Algorithm SHA256).Hash
         $destHash = (Get-FileHash -Path $skillDestPath  -Algorithm SHA256).Hash
         if ($srcHash -eq $destHash) {
-            Write-Host "[codex-jp-harness] Skill up to date: $skillDestPath" -ForegroundColor Green
+            Write-Host "[ja-output-harness] Skill up to date: $skillDestPath" -ForegroundColor Green
         } else {
             Write-Warning "Existing SKILL.md at $skillDestPath differs from the bundled version. Skip overwrite to preserve your edits. Remove the file manually and re-run to reinstall."
         }
@@ -135,7 +135,7 @@ if ($SkipSkill) {
 # Hooks placement (opt-in, experimental, Codex 0.120.0+)
 if ($EnableHooks) {
     Write-Host ""
-    Write-Host "[codex-jp-harness] -EnableHooks: configuring Stop + SessionStart hooks (experimental)." -ForegroundColor Cyan
+    Write-Host "[ja-output-harness] -EnableHooks: configuring Stop + SessionStart hooks (experimental)." -ForegroundColor Cyan
 
     # Codex version gate
     $codexVersionOk = $false
@@ -148,7 +148,7 @@ if ($EnableHooks) {
                 if (($major -gt 0) -or ($major -eq 0 -and $minor -ge 120)) {
                     $codexVersionOk = $true
                 }
-                Write-Host "[codex-jp-harness] Detected Codex version: $versionStr" -ForegroundColor Green
+                Write-Host "[ja-output-harness] Detected Codex version: $versionStr" -ForegroundColor Green
             }
         }
     } catch {}
@@ -161,13 +161,13 @@ if ($EnableHooks) {
         # Ensure codex_hooks = true in config.toml (idempotent)
         $currentConfig = Get-Content $configPath -Raw
         if ($currentConfig -match '(?m)^\s*codex_hooks\s*=\s*true\b') {
-            Write-Host "[codex-jp-harness] codex_hooks = true already set in config.toml." -ForegroundColor Green
+            Write-Host "[ja-output-harness] codex_hooks = true already set in config.toml." -ForegroundColor Green
         } else {
             if (-not $currentConfig.EndsWith("`n")) {
                 Add-Content -Path $configPath -Value "`n" -NoNewline
             }
             Add-Content -Path $configPath -Value "codex_hooks = true`n" -NoNewline
-            Write-Host "[codex-jp-harness] Set codex_hooks = true in config.toml." -ForegroundColor Green
+            Write-Host "[ja-output-harness] Set codex_hooks = true in config.toml." -ForegroundColor Green
         }
 
         # Build hooks.json by substituting placeholders
@@ -186,10 +186,10 @@ if ($EnableHooks) {
         if (Test-Path $hooksJsonPath) {
             $existing = Get-Content $hooksJsonPath -Raw
             if ($existing.Trim() -eq $rendered.Trim()) {
-                Write-Host "[codex-jp-harness] hooks.json already up to date." -ForegroundColor Green
+                Write-Host "[ja-output-harness] hooks.json already up to date." -ForegroundColor Green
             } elseif ($ForceHooks) {
                 Set-Content -Path $hooksJsonPath -Value $rendered -NoNewline -Encoding utf8
-                Write-Host "[codex-jp-harness] Overwrote existing hooks.json (-ForceHooks)." -ForegroundColor Yellow
+                Write-Host "[ja-output-harness] Overwrote existing hooks.json (-ForceHooks)." -ForegroundColor Yellow
             } else {
                 Write-Warning "Existing hooks.json at $hooksJsonPath differs from the bundled template."
                 Write-Warning "Review the difference and re-run with -ForceHooks to overwrite, or merge manually."
@@ -197,14 +197,14 @@ if ($EnableHooks) {
             }
         } else {
             Set-Content -Path $hooksJsonPath -Value $rendered -NoNewline -Encoding utf8
-            Write-Host "[codex-jp-harness] Wrote $hooksJsonPath" -ForegroundColor Green
+            Write-Host "[ja-output-harness] Wrote $hooksJsonPath" -ForegroundColor Green
         }
     }
 }
 
 Write-Host ""
-Write-Host "[codex-jp-harness] Installation complete." -ForegroundColor Green
-Write-Host "[codex-jp-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
+Write-Host "[ja-output-harness] Installation complete." -ForegroundColor Green
+Write-Host "[ja-output-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill." -ForegroundColor Green
 if ($EnableHooks) {
-    Write-Host "[codex-jp-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details." -ForegroundColor Green
+    Write-Host "[ja-output-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details." -ForegroundColor Green
 }

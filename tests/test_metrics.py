@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from codex_jp_harness import metrics, stats
+from ja_output_harness import metrics, stats
 
 
 def test_record_appends_jsonl(tmp_path: Path) -> None:
