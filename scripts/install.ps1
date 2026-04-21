@@ -158,13 +158,16 @@ if ($Mode -eq "strict") {
     $ruleBlockPath = Join-Path $repoRoot "config\agents_rule_lite.md"
 }
 $managedPattern = '(?s)\r?\n?' + [regex]::Escape($beginMarker) + '.*?' + [regex]::Escape($endMarker) + '\r?\n?'
-$legacyHeader   = '## 日本語技術文の品質ゲート (ja-output-harness'
-$legacyPattern  = '(?sm)^## 日本語技術文の品質ゲート \(ja-output-harness[^\n]*\n.*?(?=\r?\n## |\z)'
+# Match both the current repo name (ja-output-harness) AND the pre-v0.3.0
+# name (codex-jp-harness) so users who installed under the old name also
+# migrate cleanly when re-running install.
+$legacyDetectPattern = '(?m)^## 日本語技術文の品質ゲート \((ja-output-harness|codex-jp-harness)'
+$legacyPattern       = '(?sm)^## 日本語技術文の品質ゲート \((ja-output-harness|codex-jp-harness)[^\n]*\n.*?(?=\r?\n## |\z)'
 
 if (Test-Path $agentsPath) {
     $agents = Get-Content $agentsPath -Raw
     $hasManaged = $agents -match [regex]::Escape($beginMarker)
-    $hasLegacy  = $agents -match [regex]::Escape($legacyHeader)
+    $hasLegacy  = $agents -match $legacyDetectPattern
 
     if ($hasManaged -or ($AppendAgentsRule -and ($hasManaged -or $hasLegacy))) {
         # Re-install path: always replace with the current mode's rule.
@@ -180,9 +183,11 @@ if (Test-Path $agentsPath) {
         if ($hasManaged) {
             $cleaned = [regex]::Replace($cleaned, $managedPattern, "`n")
         }
-        if ($hasLegacy -and -not $hasManaged) {
-            # Legacy rule from a pre-v0.4.0 install. Remove it before adding
-            # the new marker-wrapped block so the two do not coexist.
+        if ($hasLegacy) {
+            # Legacy rule from a pre-v0.4.0 install (possibly under the
+            # pre-v0.3.0 name `codex-jp-harness`). Remove it regardless of
+            # whether a managed block is also present — an install that
+            # partially migrated previously can leave both.
             $cleaned = [regex]::Replace($cleaned, $legacyPattern, '')
         }
         $cleaned = $cleaned.TrimEnd() + "`n"

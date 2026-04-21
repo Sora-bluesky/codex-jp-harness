@@ -140,12 +140,15 @@ echo "[ja-output-harness] Wrote mode marker: $MODE_MARKER = $MODE"
 # replace atomically regardless of the prior mode (gpt-5.4 review BLOCKER #1).
 BEGIN_MARKER='<!-- BEGIN ja-output-harness managed block -->'
 END_MARKER='<!-- END ja-output-harness managed block -->'
-LEGACY_HEADER='## 日本語技術文の品質ゲート (ja-output-harness'
+# Match both the current repo name (ja-output-harness) AND the pre-v0.3.0
+# name (codex-jp-harness) so users who installed under the old name also
+# migrate cleanly when re-running install.
+LEGACY_DETECT_REGEX='^## 日本語技術文の品質ゲート \((ja-output-harness|codex-jp-harness)'
 
 if [[ -f "$AGENTS_PATH" ]]; then
   HAS_MANAGED="no"; HAS_LEGACY="no"
   if grep -qF "$BEGIN_MARKER" "$AGENTS_PATH"; then HAS_MANAGED="yes"; fi
-  if grep -qF "$LEGACY_HEADER" "$AGENTS_PATH"; then HAS_LEGACY="yes"; fi
+  if grep -qE "$LEGACY_DETECT_REGEX" "$AGENTS_PATH"; then HAS_LEGACY="yes"; fi
 
   if [[ "$HAS_MANAGED" == "yes" ]] || { [[ "$APPEND_AGENTS_RULE" == "true" ]] && [[ "$HAS_LEGACY" == "yes" || "$HAS_MANAGED" == "yes" ]]; }; then
     if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
@@ -156,7 +159,6 @@ if [[ -f "$AGENTS_PATH" ]]; then
     HOOK_PY="${HOOK_PY:-python3}"; command -v "$HOOK_PY" >/dev/null 2>&1 || HOOK_PY="python"
     MANAGED_STATUS=$(AGENTS_PATH="$AGENTS_PATH" \
       BEGIN_MARKER="$BEGIN_MARKER" END_MARKER="$END_MARKER" \
-      LEGACY_HEADER="$LEGACY_HEADER" \
       RULE_STRIPPED="$rule_stripped" \
       HAS_MANAGED="$HAS_MANAGED" HAS_LEGACY="$HAS_LEGACY" \
       "$HOOK_PY" - <<'PY'
@@ -165,7 +167,6 @@ import os, re, pathlib
 agents_path = pathlib.Path(os.environ["AGENTS_PATH"])
 begin = os.environ["BEGIN_MARKER"]
 end = os.environ["END_MARKER"]
-legacy = os.environ["LEGACY_HEADER"]
 rule = os.environ["RULE_STRIPPED"].lstrip()
 has_managed = os.environ["HAS_MANAGED"] == "yes"
 has_legacy = os.environ["HAS_LEGACY"] == "yes"
@@ -174,8 +175,13 @@ content = agents_path.read_text(encoding="utf-8")
 if has_managed:
     managed_re = re.compile(r"\r?\n?" + re.escape(begin) + r".*?" + re.escape(end) + r"\r?\n?", re.DOTALL)
     content = managed_re.sub("\n", content)
-if has_legacy and not has_managed:
-    legacy_re = re.compile(r"(?sm)^" + re.escape(legacy) + r"[^\n]*\n.*?(?=\r?\n## |\Z)")
+if has_legacy:
+    # Remove legacy block even when the managed marker is also present —
+    # partial migrations can leave both. See install.ps1 for the parallel
+    # invariant.
+    legacy_re = re.compile(
+        r"(?sm)^## 日本語技術文の品質ゲート \((?:ja-output-harness|codex-jp-harness)[^\n]*\n.*?(?=\r?\n## |\Z)"
+    )
     content = legacy_re.sub("", content)
 
 content = content.rstrip() + "\n"
