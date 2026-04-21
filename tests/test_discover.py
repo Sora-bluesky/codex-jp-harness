@@ -17,6 +17,36 @@ from ja_output_harness.discover import (
 )
 
 
+class TestMultiWordTermExclusion:
+    """gpt-5.4 review #53: phrase-level banned terms must not leak as tokens."""
+
+    def test_contract_drift_not_split_into_words(self):
+        text = (
+            "contract drift を検出した。"
+            "contract drift が再発した。"
+            "contract drift への対策を練る。"
+        )
+        cands = scan_text(
+            text,
+            existing_terms={"contract drift"},
+            allowlist=set(),
+        )
+        terms = {c.term for c in cands}
+        assert "contract" not in terms
+        assert "drift" not in terms
+
+    def test_multi_word_term_that_does_not_match_leaves_tokens(self):
+        text = "drift は単独で何度も出てくる。drift と drift と drift。"
+        # existing_terms contains the phrase, but this text does not match
+        # the phrase (words appear independently). Drift should still surface.
+        cands = scan_text(
+            text,
+            existing_terms={"contract drift"},
+            allowlist=set(),
+        )
+        assert any(c.term == "drift" for c in cands)
+
+
 class TestScanText:
     def test_repeated_term_surfaces(self):
         text = "preview を開いた。preview を閉じた。preview をもう一度。"

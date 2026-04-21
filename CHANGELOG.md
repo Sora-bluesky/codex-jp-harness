@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-21
+
+gpt-5.4 code review の MINOR 5 件をまとめて解消 (#51, #52, #53, #54, #55)。並行耐性・ホットパス性能・env 移行経路の整備。
+
+### Added
+- **rules cache** (#55): `server._load_rules_cached` が `(path, mtime)` キーで yaml 再読込を省略。finalize ホットパスの I/O を削減し、mtime 変化時のみ再パースする。
+- **`JA_OUTPUT_HARNESS_USER_CONFIG` 環境変数** (#52): 新名称を優先解決。旧 `CODEX_JP_HARNESS_USER_CONFIG` は後方互換で残すが、v0.4.0 で削除予定。相対パスは `.resolve()` で絶対化し、CWD 依存を解消。
+
+### Fixed
+- **metrics rotation の排他** (#51): `record` 全体を `O_CREAT|O_EXCL` lock で保護。タイムアウトは 1 秒（best-effort）、取得失敗時は旧挙動に fallback して絶対に finalize を遅延させない。並行 32 スレッド回帰テスト追加。
+- **discover が multi-word term を tokenize で割ってしまう** (#53): `existing_terms` に含まれる phrase (`contract drift` 等) を事前マスクしてから走査。単語単独出現は従来通り候補化。
+- **Stop hook の `"finalize"` 部分文字列判定が粗い** (#54): `.ps1` / `.sh` 両方の transcript 判定を `mcp__jp_lint__finalize` または `"name": "finalize"` の完全一致に変更。ユーザー引用文の誤 skip と逆の false negative を同時に抑制。
+
+### Notes
+- pytest 170 件 全通過（+8）、ruff clean
+- 反映手順: `uv sync` → Codex 再起動。`ja-output-tune discover --file` の cp932 ログ対応はそのまま効く。
+
 ## [0.3.4] - 2026-04-21
 
 gpt-5.4 code review の MAJOR 3 件を解消 (#46, #47, #50)。shell script 周辺と discover の非 UTF-8 対応。
