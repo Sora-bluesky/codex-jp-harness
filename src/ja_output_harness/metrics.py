@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 # Rotate to <name>.1.jsonl once the active file exceeds this many bytes.
 # 20 MB holds ~80k entries at ~250 B each — long enough for monthly
@@ -113,6 +113,7 @@ def record(
     path: Path | None = None,
     max_bytes: int = DEFAULT_MAX_BYTES,
     fixed: bool = False,
+    rule_counts: dict[str, int] | None = None,
 ) -> None:
     """Append one metric line. Swallows all I/O errors.
 
@@ -122,8 +123,13 @@ def record(
     at roughly ``2 * max_bytes``.
 
     ``fixed`` is ``True`` when the server used the fast-path auto-rewrite
-    instead of handing violations back to the caller. It's additive on the
-    schema; readers must default to ``False`` when missing.
+    instead of handing violations back to the caller.
+
+    ``rule_counts`` is a rule-name → count map (e.g. ``{"bare_identifier": 3}``)
+    added in schema v2 to diagnose fast-path misses: when a draft fails with
+    ERRORs but no fast-path fires, ``rule_counts`` reveals which rule made the
+    violation set non-auto-fixable. Missing on schema v1 entries; readers
+    must default to ``{}``.
     """
     try:
         target = path if path is not None else metrics_path()
@@ -144,6 +150,7 @@ def record(
                 "WARNING": int(severity_counts.get("WARNING", 0)),
                 "INFO": int(severity_counts.get("INFO", 0)),
             },
+            "rule_counts": {str(k): int(v) for k, v in (rule_counts or {}).items()},
             "response_bytes": response_bytes,
             "elapsed_ms": round(elapsed_ms, 2),
             "ok": bool(response.get("ok", False)),

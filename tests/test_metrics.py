@@ -25,6 +25,7 @@ def test_record_appends_jsonl(tmp_path: Path) -> None:
         draft="slice を含む違反",
         violations_count=1,
         severity_counts={"ERROR": 1, "WARNING": 0, "INFO": 0},
+        rule_counts={"banned_term": 1},
         response={"ok": False, "violations": [{"term": "slice"}], "summary": "1件"},
         elapsed_ms=2.0,
         path=target,
@@ -32,17 +33,37 @@ def test_record_appends_jsonl(tmp_path: Path) -> None:
     lines = target.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     first = json.loads(lines[0])
-    assert first["schema_version"] == "1"
+    assert first["schema_version"] == "2"
     assert first["draft_chars"] == 5
     assert first["draft_bytes"] == len("こんにちは".encode())
     assert first["violations_count"] == 0
     assert first["severity_counts"] == {"ERROR": 0, "WARNING": 0, "INFO": 0}
+    assert first["rule_counts"] == {}
     assert first["ok"] is True
     assert first["ts"].endswith("Z")
     second = json.loads(lines[1])
     assert second["ok"] is False
     assert second["violations_count"] == 1
     assert second["severity_counts"]["ERROR"] == 1
+    assert second["rule_counts"] == {"banned_term": 1}
+
+
+def test_record_rule_counts_coerces_types(tmp_path: Path) -> None:
+    """Rule names and counts must be serialised as str/int even if Counter is passed."""
+    from collections import Counter as _Counter
+
+    target = tmp_path / "m.jsonl"
+    metrics.record(
+        draft="x",
+        violations_count=3,
+        severity_counts={"ERROR": 3},
+        rule_counts=_Counter(["bare_identifier", "bare_identifier", "pr_issue_number"]),
+        response={"ok": False},
+        elapsed_ms=0.1,
+        path=target,
+    )
+    entry = json.loads(target.read_text(encoding="utf-8").splitlines()[0])
+    assert entry["rule_counts"] == {"bare_identifier": 2, "pr_issue_number": 1}
 
 
 def test_record_swallows_io_errors(tmp_path: Path) -> None:
@@ -233,6 +254,64 @@ def test_stats_reads_archive_and_active(
     assert rc == 0
     # 3 archive + 2 active = 5
     assert "total calls:  5" in out
+
+
+def test_cmd_show_rule_distribution_and_miss_diagnosis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """schema v2 rule_counts: show surfaces rule totals + fast-path miss rules."""
+    target = tmp_path / "state" / "jp-harness-metrics.jsonl"
+    _seed_metrics(
+        target,
+        [
+            # v2 entry — ERROR but fast-path did not fire → counted as a miss.
+            {
+                "schema_version": "2",
+                "ts": "2026-04-21T10:00:00Z",
+                "draft_chars": 100, "draft_bytes": 300,
+                "violations_count": 2,
+                "severity_counts": {"ERROR": 2, "WARNING": 0, "INFO": 0},
+                "rule_counts": {"banned_term": 2},
+                "response_bytes": 50, "elapsed_ms": 1.0,
+                "ok": False, "fixed": False,
+            },
+            # v2 entry — fast-path fired (fixed=true) → NOT a miss even though
+            # rule_counts is populated (represents the post-fix advisories).
+            {
+                "schema_version": "2",
+                "ts": "2026-04-21T10:00:05Z",
+                "draft_chars": 80, "draft_bytes": 240,
+                "violations_count": 0,
+                "severity_counts": {"ERROR": 0, "WARNING": 0, "INFO": 0},
+                "rule_counts": {"bare_identifier": 1},
+                "response_bytes": 50, "elapsed_ms": 1.0,
+                "ok": True, "fixed": True,
+            },
+            # v1 entry (no rule_counts) — must not blow up.
+            {
+                "schema_version": "1",
+                "ts": "2026-04-20T10:00:00Z",
+                "draft_chars": 50, "draft_bytes": 150,
+                "violations_count": 0,
+                "severity_counts": {"ERROR": 0, "WARNING": 0, "INFO": 0},
+                "response_bytes": 10, "elapsed_ms": 0.5,
+                "ok": True,
+            },
+        ],
+    )
+    monkeypatch.setattr(stats, "metrics_path", lambda: target)
+    rc = stats.cmd_show(argparse.Namespace())
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "rule distribution (all entries):" in out
+    assert "banned_term" in out
+    assert "bare_identifier" in out
+    # Fast-path miss section must include the banned_term (miss) but NOT
+    # bare_identifier (which came from a fixed=true entry).
+    assert "fast-path miss diagnosis (1 entries" in out
+    miss_section = out.split("fast-path miss diagnosis")[1]
+    assert "banned_term" in miss_section
+    assert "bare_identifier" not in miss_section
 
 
 def test_cmd_show_empty_file(
