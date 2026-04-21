@@ -235,10 +235,10 @@ def cmd_discover(args: argparse.Namespace) -> int:
     user override) is excluded so the list is actionable as-is.
     """
     if args.file:
-        # Try UTF-8 first (most common), then fall back through cp932 for
-        # Japanese Windows logs, then latin-1 with replacement as a last
-        # resort. UnicodeDecodeError on non-UTF-8 was a common crash in
-        # Japanese CI logs (gpt-5.4 review #46).
+        # Try UTF-8 first (most common), then fall back to cp932 for Japanese
+        # Windows logs. If neither decodes cleanly, decode as UTF-8 with
+        # replacement characters so discover keeps working on partly-garbled
+        # inputs (gpt-5.4 review #46).
         raw = Path(args.file).expanduser().read_bytes()
         for enc in ("utf-8", "cp932"):
             try:
