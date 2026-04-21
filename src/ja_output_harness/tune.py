@@ -88,7 +88,10 @@ def _locked_rewrite(path: Path, timeout: float = _LOCK_TIMEOUT_SECONDS):
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             os.close(fd)
             break
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
+            # Windows raises PermissionError (errno 13) briefly when the lock
+            # file is in "deletion pending" state right after another writer
+            # unlinked it — treat it the same as FileExistsError so we retry.
             if time.monotonic() > deadline:
                 try:
                     if lock_path.exists():
@@ -99,7 +102,7 @@ def _locked_rewrite(path: Path, timeout: float = _LOCK_TIMEOUT_SECONDS):
                 except OSError:
                     pass
                 raise RuntimeError(f"timeout acquiring lock: {lock_path}")
-            time.sleep(0.05)
+            time.sleep(0.02)
     try:
         yield
     finally:

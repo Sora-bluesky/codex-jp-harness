@@ -10,6 +10,7 @@ from ja_output_harness.rules import (
     apply_backtick_fix,
     detect_banned_terms,
     detect_bare_identifiers,
+    detect_pr_issue_numbers,
     detect_sentence_length,
     detect_too_many_identifiers,
     extract_replacement,
@@ -174,6 +175,46 @@ class TestBareIdentifiers:
         text = "詳細は [TASK-101](https://example.com) を参照してください。"
         violations = detect_bare_identifiers(text, cfg)
         assert any(v.token == "TASK-101" for v in violations)
+
+
+class TestPrIssueNumbers:
+    """gpt-5.4 review #45: PR/issue number references must be flagged."""
+
+    def test_pr_number_detected(self, cfg):
+        violations = detect_pr_issue_numbers("調査の詳細は PR #123 にまとめた。", cfg)
+        assert any(v.token == "PR #123" for v in violations)
+
+    def test_issue_number_detected(self, cfg):
+        violations = detect_pr_issue_numbers("issue #42 でレビュー依頼中。", cfg)
+        assert any(v.token == "issue #42" for v in violations)
+
+    def test_case_insensitive(self, cfg):
+        violations = detect_pr_issue_numbers("Pr#7 と ISSUE #99 は関連。", cfg)
+        tokens = {v.token for v in violations}
+        assert "Pr#7" in tokens
+        assert "ISSUE #99" in tokens
+
+    def test_backtick_enclosed_ignored(self, cfg):
+        violations = detect_pr_issue_numbers("`PR #123` は修正済み。", cfg)
+        assert violations == []
+
+    def test_bare_hash_number_not_flagged(self, cfg):
+        # Markdown heading or a stray #123 without PR/issue context must not
+        # be flagged — we require the keyword.
+        violations = detect_pr_issue_numbers("# 見出し\n番号 #7 の処理。", cfg)
+        assert violations == []
+
+    def test_severity_is_error(self, cfg):
+        violations = detect_pr_issue_numbers("PR #1 の内容。", cfg)
+        assert violations and violations[0].severity == "ERROR"
+
+    def test_fix_via_backtick_wrap(self, cfg):
+        draft = "PR #123 と issue #42 を確認。"
+        fixed = apply_backtick_fix(draft, cfg)
+        assert "`PR #123`" in fixed
+        assert "`issue #42`" in fixed
+        # Re-lint should surface no pr_issue_number violations.
+        assert detect_pr_issue_numbers(fixed, cfg) == []
 
 
 class TestTooManyIdentifiers:

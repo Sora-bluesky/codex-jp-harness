@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-21
+
+gpt-5.4 code review の MAJOR 2 件を解消 (#45, #49)。新ルール追加とドキュメント実態整合。
+
+### Added
+- **`pr_issue_number` 検出ルール** (#45): `README.md` と `config/agents_rule.md` が「PR/issue 番号の裸書き」を対象と宣言していたのに `bare_identifier` regex が拾えていなかった。`PR #123` / `issue #42` 等を専用ルールで検出し、fast path でバッククォート自動 wrap。`tests/test_rules.TestPrIssueNumbers` +7 件。
+
+### Fixed
+- **README / docs と実装の数値・挙動乖離** (#49):
+  - README の機能表を実装に合わせて更新（禁止語 26 語、`identifier_limit_per_sentence: 2` 超過、`pr_issue_number` ルール追加）
+  - 「名詞句過連続検出（の-chain / カタカナ長連鎖）」という未実装機能の記述を削除し、代わりに実装済みの文長過多検出 (`sentence_too_long`) を明記
+  - `max_identifiers_per_sentence` → `identifier_limit_per_sentence` に正式キー名で記述、`sentence_length` 閾値の書き方も追加
+  - `docs/INSTALL.md` の動作確認手順を v0.3.x fast path 挙動（`ok:true, fixed:true, rewritten:"..."`）に更新
+  - `docs/OPERATIONS.md` の `noun_chain_allowlist` 参照を削除し、`ja-output-tune disable` / 閾値調整の案内に置換
+  - `docs/ARCHITECTURE.md` の fast path 対応範囲を現状（`banned_term` + `bare_identifier` + `pr_issue_number` + 副次効果）に更新
+  - `docs/DEPRECATION.md` の uninstall 約束を現行実装（`[mcp_servers.jp_lint]` 削除のみ自動、hook/AGENTS.md は手動）に下げ、完全自動化は Issue #50 で追跡と明記
+
+### Changed
+- `server.py` の fast path が `pr_issue_number` も自動修正対象に追加。summary 文言を「識別子/参照 N 件をバッククォート化」に更新。
+
+### Notes
+- pytest 159 件 全通過（+7）、ruff clean
+- 反映手順: `uv sync` → Codex（CLI / App）再起動
+
 ## [0.3.2] - 2026-04-21
 
 gpt-5.4 code review の MAJOR 2 件を解消 (#44, #48)。`tune.py` まわりの core fix。

@@ -56,7 +56,7 @@ scan 対象は日本語文中の連続した英字（長さ 3 以上）。内蔵
 |---|---|---|
 | retry 率 | > 30% | 禁止語リストの `suggest` 文面を見直す、または `config/agents_rule.md` の文面を強化 |
 | 呼び忘れ率 | > 5% | `config/agents_rule.md` の文面強化、または finalize 必須の明確化 |
-| 誤検知率 | > 10% | `noun_chain_allowlist` 拡充、または閾値調整 |
+| 誤検知率 | > 10% | `ja-output-tune disable <term>` で該当語を外す、または `thresholds.identifier_limit_per_sentence` / `sentence_length` の閾値を緩める |
 | MCP サーバー crash | 月1回以上 | ログ確認、依存更新検討 |
 
 ## 禁止語リストの更新

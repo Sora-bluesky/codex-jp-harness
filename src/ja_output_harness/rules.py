@@ -227,6 +227,38 @@ def detect_bare_identifiers(text: str, cfg: RuleConfig) -> list[Violation]:
     return violations
 
 
+# PR / issue number in prose, e.g. "PR #123", "issue #42". Requires the keyword
+# to be present so we don't flag markdown headings (`# foo`) or numeric signs.
+# Case-insensitive via inline flag so `Issue #7` and `pr#99` both match.
+_PR_ISSUE_PATTERN = re.compile(r"(?i)\b(?:PR|issue)\s*#\s*\d+\b")
+
+
+def detect_pr_issue_numbers(text: str, _cfg: RuleConfig) -> list[Violation]:
+    """Flag PR/issue number references written without backticks.
+
+    `README.md` and `config/agents_rule.md` promise to catch "PR/issue 番号 の
+    裸書き" but the generic `bare_identifier` regex requires alphabetic starts
+    with `._/-` separators and cannot express `PR #123` / `issue #42`. This
+    rule fills that gap (gpt-5.4 review #45).
+    """
+    violations: list[Violation] = []
+    scan = _strip_code_blocks(text)
+    for lineno, raw_line in enumerate(scan.split("\n"), 1):
+        masked = _mask_inline_code(raw_line)
+        for match in _PR_ISSUE_PATTERN.finditer(masked):
+            violations.append(
+                Violation(
+                    rule="pr_issue_number",
+                    line=lineno,
+                    token=match.group(),
+                    snippet=raw_line.strip()[:100],
+                    fix="バッククォートで囲む",
+                    severity="ERROR",
+                )
+            )
+    return violations
+
+
 def detect_too_many_identifiers(text: str, cfg: RuleConfig) -> list[Violation]:
     """Flag sentences containing more than `limit` code identifiers."""
     violations: list[Violation] = []
@@ -303,6 +335,7 @@ def lint(text: str, cfg: RuleConfig) -> list[Violation]:
     return (
         detect_banned_terms(text, cfg)
         + detect_bare_identifiers(text, cfg)
+        + detect_pr_issue_numbers(text, cfg)
         + detect_too_many_identifiers(text, cfg)
         + detect_sentence_length(text, cfg)
     )
@@ -398,12 +431,14 @@ def _wrap_bare_identifiers_in_line(line: str, pattern: re.Pattern[str]) -> str:
 def apply_backtick_fix(draft: str, cfg: RuleConfig) -> str:
     """Return ``draft`` with every bare code-identifier wrapped in backticks.
 
-    The wrap is safe: markdown inline code has no effect on prose rendering
-    beyond visual emphasis, and once wrapped the token is masked from further
-    lint detection (bare_identifier, too_many_identifiers, and the identifier-
-    aware branch of sentence_too_long all rely on the same masking).
+    Two patterns are applied in order: PR/issue references first (so the
+    generic identifier pattern never misreads ``PR #123`` as two tokens),
+    then the identifier pattern. Both wraps are safe because once a token is
+    wrapped, ``_mask_inline_code`` hides it from subsequent rules
+    (bare_identifier / too_many_identifiers / identifier-aware
+    sentence_too_long all share the same masking).
     """
-    pattern = re.compile(cfg.identifier_pattern)
+    id_pattern = re.compile(cfg.identifier_pattern)
     # Preserve fenced code blocks verbatim.
     parts = re.split(r"(```.*?```)", draft, flags=re.DOTALL)
     out: list[str] = []
@@ -411,6 +446,10 @@ def apply_backtick_fix(draft: str, cfg: RuleConfig) -> str:
         if idx % 2 == 1:
             out.append(part)
             continue
-        lines_out = [_wrap_bare_identifiers_in_line(line, pattern) for line in part.split("\n")]
+        lines_out: list[str] = []
+        for line in part.split("\n"):
+            line = _wrap_bare_identifiers_in_line(line, _PR_ISSUE_PATTERN)
+            line = _wrap_bare_identifiers_in_line(line, id_pattern)
+            lines_out.append(line)
         out.append("\n".join(lines_out))
     return "".join(out)

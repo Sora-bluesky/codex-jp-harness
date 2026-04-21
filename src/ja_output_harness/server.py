@@ -107,15 +107,21 @@ def finalize(draft: str) -> dict[str, Any]:
     return response
 
 
-_AUTO_FIX_RULES = frozenset({"banned_term", "bare_identifier", "too_many_identifiers",
-                             "sentence_too_long"})
+_AUTO_FIX_RULES = frozenset({
+    "banned_term",
+    "bare_identifier",
+    "pr_issue_number",
+    "too_many_identifiers",
+    "sentence_too_long",
+})
 
 
 def _fast_path_applicable(error_violations: list[Violation]) -> bool:
     """Return True when every ERROR has a deterministic server-side fix candidate.
 
     - ``banned_term`` is fixable when the suggest yields a replacement.
-    - ``bare_identifier`` is always fixable by wrapping in backticks.
+    - ``bare_identifier`` / ``pr_issue_number`` are always fixable by wrapping
+      in backticks.
     - ``too_many_identifiers`` / ``sentence_too_long`` often clear as a side
       effect of backticking bare identifiers, so we still try the fast path
       and re-lint decides whether the fix stuck.
@@ -136,27 +142,32 @@ def _fast_path_applicable(error_violations: list[Violation]) -> bool:
 def _apply_fast_path_fixes(
     draft: str, cfg: Any, error_violations: list[Violation]
 ) -> tuple[str, str]:
-    """Apply banned-term substitutions and bare-identifier wrapping.
+    """Apply banned-term substitutions and backtick wrapping.
 
     Returns ``(rewritten, summary)``. ``summary`` is the human-readable
-    description placed on the fast-path response.
+    description placed on the fast-path response. ``apply_backtick_fix``
+    wraps both generic bare identifiers and PR/issue references in one pass,
+    so we count them together here.
     """
     banned = [
         v for v in error_violations
         if v.rule == "banned_term" and extract_replacement(v.suggest)
     ]
-    bare = [v for v in error_violations if v.rule == "bare_identifier"]
+    wrap_targets = [
+        v for v in error_violations
+        if v.rule in ("bare_identifier", "pr_issue_number")
+    ]
 
     rewritten = draft
     parts: list[str] = []
     if banned:
         rewritten = apply_auto_fix(rewritten, banned)
         parts.extend(f"{v.term} → {extract_replacement(v.suggest)}" for v in banned)
-    if bare:
+    if wrap_targets:
         rewritten = apply_backtick_fix(rewritten, cfg)
-        parts.append(f"識別子 {len(bare)} 件をバッククォート化")
+        parts.append(f"識別子/参照 {len(wrap_targets)} 件をバッククォート化")
 
-    fix_count = len(banned) + (1 if bare else 0)
+    fix_count = len(banned) + (1 if wrap_targets else 0)
     summary = f"{fix_count}件を自動修正 ({', '.join(parts)})" if parts else "変更なし"
     return rewritten, summary
 

@@ -26,7 +26,11 @@ Codex が日本語応答を返すまでの MCP 往復と、Stop → SessionStart
 2. Codex が下書きを生成
 3. Codex が `mcp__jp_lint__finalize(draft)` を呼ぶ
 4. `jp-lint` サーバーが `rules.py` で lint し、違反の種類で次のいずれかに分岐:
-   - **Fast path** (v0.2.17+): 違反がすべて `banned_term` で `suggest` から置換語を抽出できる場合、server が draft を直接書き換えて `{"ok": true, "fixed": true, "rewritten": ...}` を返す。Codex は再 rewrite せず `rewritten` をそのままユーザーに返す（retry ゼロ）
+   - **Fast path** (v0.2.17 以降、v0.3.3 時点): ERROR がすべて以下のいずれかに該当する場合、server が draft を直接書き換えて `{"ok": true, "fixed": true, "rewritten": ...}` を返す。Codex は再 rewrite せず `rewritten` をそのままユーザーに返す（retry ゼロ）:
+     - `banned_term`（`suggest` から置換語を抽出可能）
+     - `bare_identifier`（バッククォートで囲む）
+     - `pr_issue_number`（`PR #123` / `issue #42` をバッククォートで囲む）
+     - `too_many_identifiers` / `sentence_too_long`（識別子 wrap の副次効果で解消するケース）
    - **Slow path**: 構造的違反（`bare_identifier` / `too_many_identifiers` / `sentence_too_long` 等）を含む場合は従来通り `{"ok": false, "violations": ...}` を返す
 5. slow path の場合、Codex が violations を読んで書き直して再度 `finalize`（最大 3 retry）
 6. `ok: true` を得たドラフトのみユーザーに返す
