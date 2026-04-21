@@ -293,15 +293,35 @@ if [[ "$ENABLE_HOOKS" == "true" ]]; then
   elif [[ ! -f "$STOP_HOOK_PATH" || ! -f "$START_HOOK_PATH" || ! -f "$HOOKS_TEMPLATE" ]]; then
     echo "[ja-output-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
   else
-    # Ensure codex_hooks = true in config.toml (idempotent)
-    if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
-      echo "[ja-output-harness] codex_hooks = true already set in config.toml."
-    else
-      if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
-        printf '\n' >> "$CONFIG_PATH"
+    # Enable the codex_hooks feature. On Codex >= 0.122 this is a
+    # feature flag gated by `codex features enable` — writing
+    # `[features].codex_hooks = true` directly into config.toml does NOT
+    # enable the hooks engine because the feature is at stage "under
+    # development" (codex-rs/features/src/lib.rs). Use the official CLI
+    # when available; fall back to raw append for older builds so
+    # existing v0.3.x users still work.
+    hooks_enabled="false"
+    if command -v codex >/dev/null 2>&1 && codex features list >/dev/null 2>&1; then
+      if codex features enable codex_hooks >/dev/null 2>&1; then
+        hooks_enabled="true"
+        echo "[ja-output-harness] Enabled codex_hooks feature via \`codex features enable\`."
+      else
+        echo "[ja-output-harness] \`codex features enable codex_hooks\` failed; falling back to config.toml append." >&2
       fi
-      printf 'codex_hooks = true\n' >> "$CONFIG_PATH"
-      echo "[ja-output-harness] Set codex_hooks = true in config.toml."
+    fi
+
+    if [[ "$hooks_enabled" != "true" ]]; then
+      # Fallback: raw append for Codex < 0.122 (pre-date the
+      # UnderDevelopment feature gate).
+      if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
+        echo "[ja-output-harness] codex_hooks = true already in config.toml (fallback path)."
+      else
+        if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
+          printf '\n' >> "$CONFIG_PATH"
+        fi
+        printf '\n[features]\ncodex_hooks = true\n' >> "$CONFIG_PATH"
+        echo "[ja-output-harness] Appended [features] codex_hooks = true (fallback for pre-0.122 Codex)."
+      fi
     fi
 
     # Build absolute commands

@@ -266,16 +266,47 @@ if ($EnableHooks) {
     } elseif (-not (Test-Path $stopHookPath) -or -not (Test-Path $startHookPath) -or -not (Test-Path $hooksTemplate)) {
         Write-Warning "Hooks source files missing in repo. Skipping hooks setup."
     } else {
-        # Ensure codex_hooks = true in config.toml (idempotent)
-        $currentConfig = Get-Content $configPath -Raw
-        if ($currentConfig -match '(?m)^\s*codex_hooks\s*=\s*true\b') {
-            Write-Host "[ja-output-harness] codex_hooks = true already set in config.toml." -ForegroundColor Green
-        } else {
-            if (-not $currentConfig.EndsWith("`n")) {
-                Add-Content -Path $configPath -Value "`n" -NoNewline
+        # Enable the codex_hooks feature. On Codex >= 0.122 this is a
+        # feature flag gated by `codex features enable` — writing
+        # `[features].codex_hooks = true` directly into config.toml does
+        # NOT enable the hooks engine because the feature is at stage
+        # "under development" (codex-rs/features/src/lib.rs). Use the
+        # official CLI when available; fall back to raw append for older
+        # builds so existing v0.3.x users still work.
+        $hooksEnabled = $false
+        $codexFeaturesOk = $false
+        try {
+            & codex features list *> $null
+            if ($LASTEXITCODE -eq 0) { $codexFeaturesOk = $true }
+        } catch {}
+
+        if ($codexFeaturesOk) {
+            try {
+                $featuresOut = & codex features enable codex_hooks 2>&1 | Out-String
+                if ($LASTEXITCODE -eq 0) {
+                    $hooksEnabled = $true
+                    Write-Host "[ja-output-harness] Enabled codex_hooks feature via ``codex features enable``." -ForegroundColor Green
+                } else {
+                    Write-Warning "``codex features enable codex_hooks`` failed: $featuresOut"
+                }
+            } catch {
+                Write-Warning "``codex features enable codex_hooks`` threw: $_"
             }
-            Add-Content -Path $configPath -Value "codex_hooks = true`n" -NoNewline
-            Write-Host "[ja-output-harness] Set codex_hooks = true in config.toml." -ForegroundColor Green
+        }
+
+        if (-not $hooksEnabled) {
+            # Fallback: raw append for Codex < 0.122 (feature flag model
+            # pre-dates the UnderDevelopment gate).
+            $currentConfig = Get-Content $configPath -Raw
+            if ($currentConfig -match '(?m)^\s*codex_hooks\s*=\s*true\b') {
+                Write-Host "[ja-output-harness] codex_hooks = true already in config.toml (fallback path)." -ForegroundColor Green
+            } else {
+                if (-not $currentConfig.EndsWith("`n")) {
+                    Add-Content -Path $configPath -Value "`n" -NoNewline
+                }
+                Add-Content -Path $configPath -Value "`n[features]`ncodex_hooks = true`n" -NoNewline
+                Write-Host "[ja-output-harness] Appended [features] codex_hooks = true (fallback for pre-0.122 Codex)." -ForegroundColor Yellow
+            }
         }
 
         # Build hooks.json by substituting placeholders
