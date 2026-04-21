@@ -1,10 +1,25 @@
 # ja-output-harness installer (Windows / PowerShell 7+)
 #
-# Registers the jp-lint MCP server in ~/.codex/config.toml and prompts the
-# user to add the finalize rule to ~/.codex/AGENTS.md (Phase A only; Phase C
-# hook registration is added by a later script).
+# Installs the harness in one of three modes:
+#   lite         — no MCP server. Stop hook runs local lint for post-hoc
+#                  violation logging. Zero output-token overhead.
+#                  (default for new installs)
+#   strict-lite  — same local lint, but Stop hook emits
+#                  {"decision":"block",...} on ERROR to trigger Codex
+#                  self-correction. ~0.15x excess overhead.
+#   strict       — v0.3.x behaviour: registers the MCP finalize gate so
+#                  Codex calls it before every Japanese reply. ~2x+ excess
+#                  overhead but tightest real-time compliance.
+#
+# If -Mode is omitted, the installer preserves the mode recorded in
+# ~/.codex/state/jp-harness-mode; if no record exists, "lite" is chosen.
+#
+# The installer writes the mode marker to ~/.codex/state/jp-harness-mode
+# so the Stop hook can read it at runtime.
 
 param(
+    [ValidateSet("lite", "strict-lite", "strict", "")]
+    [string]$Mode = "",
     [switch]$Force,
     [switch]$AppendAgentsRule,
     [switch]$SkipSkill,
@@ -28,6 +43,36 @@ $hooksJsonPath = Join-Path $codexDir "hooks.json"
 $hooksTemplate = Join-Path $repoRoot "config\hooks.example.json"
 $stopHookPath  = Join-Path $repoRoot "hooks\stop-finalize-check.ps1"
 $startHookPath = Join-Path $repoRoot "hooks\session-start-reeducate.ps1"
+$stateDir      = Join-Path $codexDir "state"
+$modeMarker    = Join-Path $stateDir "jp-harness-mode"
+
+# Mode resolution: explicit flag > marker file > "lite" (new install default).
+if ([string]::IsNullOrWhiteSpace($Mode)) {
+    if (Test-Path $modeMarker) {
+        try {
+            $Mode = (Get-Content -Path $modeMarker -Raw -Encoding utf8).Trim()
+        } catch {
+            $Mode = ""
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Mode)) {
+        $Mode = "lite"
+    }
+}
+if ($Mode -notin @("lite", "strict-lite", "strict")) {
+    Write-Error "Invalid -Mode '$Mode'. Expected lite, strict-lite, or strict."
+    exit 1
+}
+Write-Host "[ja-output-harness] Mode: $Mode" -ForegroundColor Cyan
+
+# lite / strict-lite require the Stop hook to run local lint. Force the
+# hook setup on so users don't silently get no enforcement.
+if ($Mode -in @("lite", "strict-lite")) {
+    if (-not $EnableHooks) {
+        Write-Host "[ja-output-harness] Mode '$Mode' requires hooks. Enabling." -ForegroundColor Cyan
+        $EnableHooks = $true
+    }
+}
 
 # Preflight
 if (-not (Test-Path $serverPath)) {
@@ -59,10 +104,13 @@ if (-not $SkipSkill -and -not (Test-Path $skillSrc)) {
 # Read config
 $config = Get-Content $configPath -Raw
 
-# Remove any existing entry (idempotent re-install)
+# Remove any existing entry (idempotent re-install). In lite / strict-lite
+# modes we deliberately leave the [mcp_servers.jp_lint] stanza absent so the
+# MCP server is NOT spawned per turn — that is the source of the +200%
+# output-token overhead we are trying to eliminate.
 if ($config -match '\[mcp_servers\.jp_lint\]') {
     if (-not $Force) {
-        Write-Host "[ja-output-harness] [mcp_servers.jp_lint] already present. Rewriting to match current repo location." -ForegroundColor Yellow
+        Write-Host "[ja-output-harness] [mcp_servers.jp_lint] already present. Rewriting." -ForegroundColor Yellow
     }
     $pattern = '(?ms)\r?\n\[mcp_servers\.jp_lint\].*?(?=\r?\n\[|\z)'
     $config = [regex]::Replace($config, $pattern, '')
@@ -70,23 +118,42 @@ if ($config -match '\[mcp_servers\.jp_lint\]') {
     Set-Content -Path $configPath -Value $config -NoNewline
 }
 
-# Register MCP server (using the repo's .venv Python so deps are available)
-$escapedPython = $venvPython -replace '\\', '\\'
-$entry = @"
+if ($Mode -eq "strict") {
+    # Register MCP server (using the repo's .venv Python so deps are available)
+    $escapedPython = $venvPython -replace '\\', '\\'
+    $entry = @"
 
 [mcp_servers.jp_lint]
 command = "$escapedPython"
 args = ["-m", "ja_output_harness.server"]
 "@
-Add-Content -Path $configPath -Value $entry -NoNewline
-Write-Host "[ja-output-harness] Registered [mcp_servers.jp_lint] with venv Python: $venvPython" -ForegroundColor Green
+    Add-Content -Path $configPath -Value $entry -NoNewline
+    Write-Host "[ja-output-harness] Registered [mcp_servers.jp_lint] (strict mode) with venv Python: $venvPython" -ForegroundColor Green
+} else {
+    Write-Host "[ja-output-harness] Skipped [mcp_servers.jp_lint] registration (mode=$Mode — local lint only)." -ForegroundColor Green
+}
 
-# AGENTS.md rule handling
-$ruleBlockPath = Join-Path $repoRoot "config\agents_rule.md"
+# Write the mode marker so the Stop hook can branch on it at runtime.
+if (-not (Test-Path $stateDir)) {
+    New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+}
+Set-Content -Path $modeMarker -Value $Mode -NoNewline -Encoding utf8
+Write-Host "[ja-output-harness] Wrote mode marker: $modeMarker = $Mode" -ForegroundColor Green
+
+# AGENTS.md rule handling — pick the rule block matching the install mode.
+# strict uses the full rule that tells Codex to call mcp__jp_lint__finalize;
+# lite / strict-lite use a shorter rule that describes the top-5 constraints
+# because the MCP server is absent.
+if ($Mode -eq "strict") {
+    $ruleBlockPath = Join-Path $repoRoot "config\agents_rule.md"
+} else {
+    $ruleBlockPath = Join-Path $repoRoot "config\agents_rule_lite.md"
+}
+$ruleMarker = if ($Mode -eq "strict") { 'mcp__jp_lint__finalize' } else { 'ja-output-harness lite' }
 if (Test-Path $agentsPath) {
     $agents = Get-Content $agentsPath -Raw
-    if ($agents -match 'mcp__jp_lint__finalize') {
-        Write-Host "[ja-output-harness] AGENTS.md already references finalize rule. OK." -ForegroundColor Green
+    if ($agents -match [regex]::Escape($ruleMarker)) {
+        Write-Host "[ja-output-harness] AGENTS.md already contains the $Mode-mode rule. OK." -ForegroundColor Green
     } elseif ($AppendAgentsRule) {
         if (-not (Test-Path $ruleBlockPath)) {
             Write-Error "agents_rule.md not found at $ruleBlockPath"

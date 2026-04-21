@@ -136,6 +136,15 @@ if ([regex]::IsMatch($config, $codexHooksPattern)) {
     }
 }
 
+# 4. Remove the mode marker so a future install default re-enters the
+#    "new user" path and writes the current default rather than restoring
+#    the previous mode.
+$modeMarker = Join-Path $codexDir "state\jp-harness-mode"
+if (Test-Path $modeMarker) {
+    Remove-Item $modeMarker -Force
+    Write-Host "[ja-output-harness] Removed mode marker: $modeMarker" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "[ja-output-harness] Manual step (still required):" -ForegroundColor Yellow
 Write-Host "[ja-output-harness]   Edit ~/.codex/AGENTS.md and remove the quality-gate rule block." -ForegroundColor Yellow

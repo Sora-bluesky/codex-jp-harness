@@ -174,6 +174,14 @@ if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_P
   fi
 fi
 
+# 4. Remove the mode marker so a future install default re-enters the
+#    "new user" path.
+MODE_MARKER="$CODEX_DIR/state/jp-harness-mode"
+if [[ -f "$MODE_MARKER" ]]; then
+  rm -f "$MODE_MARKER"
+  echo "[ja-output-harness] Removed mode marker: $MODE_MARKER"
+fi
+
 echo ""
 echo "[ja-output-harness] Manual step (still required):"
 echo "[ja-output-harness]   Edit ~/.codex/AGENTS.md and remove the quality-gate rule block."

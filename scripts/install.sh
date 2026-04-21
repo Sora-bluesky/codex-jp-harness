@@ -14,6 +14,7 @@ FORCE=false
 SKIP_SKILL=false
 ENABLE_HOOKS=false
 FORCE_HOOKS=false
+MODE=""
 for arg in "$@"; do
   case "$arg" in
     --append-agents-rule) APPEND_AGENTS_RULE=true ;;
@@ -21,6 +22,8 @@ for arg in "$@"; do
     --skip-skill)         SKIP_SKILL=true ;;
     --enable-hooks)       ENABLE_HOOKS=true ;;
     --force-hooks)        FORCE_HOOKS=true ;;
+    --mode=*)             MODE="${arg#--mode=}" ;;
+    --mode)               echo "[ja-output-harness] --mode requires =value (e.g. --mode=lite)" >&2; exit 1 ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -43,7 +46,6 @@ fi
 CODEX_DIR="$HOME/.codex"
 CONFIG_PATH="$CODEX_DIR/config.toml"
 AGENTS_PATH="$CODEX_DIR/AGENTS.md"
-RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
 SKILL_SRC="$REPO_ROOT/skills/jp-harness-tune/SKILL.md"
 SKILL_DEST_DIR="$CODEX_DIR/skills/jp-harness-tune"
 SKILL_DEST_PATH="$SKILL_DEST_DIR/SKILL.md"
@@ -51,6 +53,35 @@ HOOKS_JSON_PATH="$CODEX_DIR/hooks.json"
 HOOKS_TEMPLATE="$REPO_ROOT/config/hooks.example.json"
 STOP_HOOK_PATH="$REPO_ROOT/hooks/stop-finalize-check.sh"
 START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
+STATE_DIR="$CODEX_DIR/state"
+MODE_MARKER="$STATE_DIR/jp-harness-mode"
+
+# Mode resolution: explicit flag > marker file > "lite" (new install default).
+if [[ -z "$MODE" && -f "$MODE_MARKER" ]]; then
+  MODE="$(tr -d '[:space:]' < "$MODE_MARKER")"
+fi
+if [[ -z "$MODE" ]]; then
+  MODE="lite"
+fi
+case "$MODE" in
+  lite|strict-lite|strict) ;;
+  *) echo "[ja-output-harness] Invalid --mode=$MODE (expected lite, strict-lite, strict)." >&2; exit 1 ;;
+esac
+echo "[ja-output-harness] Mode: $MODE"
+
+if [[ "$MODE" == "strict" ]]; then
+  RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule.md"
+  RULE_MARKER='mcp__jp_lint__finalize'
+else
+  RULE_BLOCK_PATH="$REPO_ROOT/config/agents_rule_lite.md"
+  RULE_MARKER='ja-output-harness lite'
+fi
+
+# lite / strict-lite require hooks (the Stop hook does the lint work).
+if [[ "$MODE" != "strict" && "$ENABLE_HOOKS" != "true" ]]; then
+  echo "[ja-output-harness] Mode '$MODE' requires hooks. Enabling."
+  ENABLE_HOOKS=true
+fi
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
@@ -86,20 +117,29 @@ if grep -q '^\[mcp_servers\.jp_lint\]' "$CONFIG_PATH"; then
   rm -f "$tmp"
 fi
 
-# Register MCP server entry. Backslashes in paths are TOML-escaped.
-python_path_escaped="${VENV_PYTHON//\\/\\\\}"
-{
-  echo ""
-  echo "[mcp_servers.jp_lint]"
-  echo "command = \"${python_path_escaped}\""
-  echo 'args = ["-m", "ja_output_harness.server"]'
-} >> "$CONFIG_PATH"
-echo "[ja-output-harness] Registered [mcp_servers.jp_lint] with venv Python: $VENV_PYTHON"
+if [[ "$MODE" == "strict" ]]; then
+  # Register MCP server entry. Backslashes in paths are TOML-escaped.
+  python_path_escaped="${VENV_PYTHON//\\/\\\\}"
+  {
+    echo ""
+    echo "[mcp_servers.jp_lint]"
+    echo "command = \"${python_path_escaped}\""
+    echo 'args = ["-m", "ja_output_harness.server"]'
+  } >> "$CONFIG_PATH"
+  echo "[ja-output-harness] Registered [mcp_servers.jp_lint] (strict mode) with venv Python: $VENV_PYTHON"
+else
+  echo "[ja-output-harness] Skipped [mcp_servers.jp_lint] registration (mode=$MODE — local lint only)."
+fi
+
+# Write the mode marker so the Stop hook can branch on it at runtime.
+mkdir -p "$STATE_DIR"
+printf '%s' "$MODE" > "$MODE_MARKER"
+echo "[ja-output-harness] Wrote mode marker: $MODE_MARKER = $MODE"
 
 # AGENTS.md rule handling
 if [[ -f "$AGENTS_PATH" ]]; then
-  if grep -q 'mcp__jp_lint__finalize' "$AGENTS_PATH"; then
-    echo "[ja-output-harness] AGENTS.md already references finalize rule. OK."
+  if grep -qF "$RULE_MARKER" "$AGENTS_PATH"; then
+    echo "[ja-output-harness] AGENTS.md already contains the $MODE-mode rule. OK."
   elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
     if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
       echo "[ja-output-harness] agents_rule.md not found at $RULE_BLOCK_PATH" >&2
