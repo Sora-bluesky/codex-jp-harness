@@ -1,6 +1,6 @@
 [project]
 name = "ja-output-harness"
-version = "0.3.1"
+version = "0.3.2"
 description = "Japanese output quality gate for LLM coding agents (Codex CLI/App 等) via MCP finalize server"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -80,16 +80,18 @@ def _apply_user_overrides(raw: dict[str, Any], user_raw: dict[str, Any]) -> dict
     if disable:
         banned = [e for e in banned if e.get("term") not in disable]
 
+    add = user_raw.get("add", []) or []
+    if add:
+        banned.extend(e for e in add if isinstance(e, dict) and e.get("term"))
+
+    # overrides は disable/add を反映した後に適用することで、user-added の
+    # term にも set-severity が効くようにする（gpt-5.4 review #44）。
     overrides = user_raw.get("overrides", {}) or {}
     if overrides:
         for entry in banned:
             term = entry.get("term", "")
             if term in overrides and isinstance(overrides[term], dict):
                 entry.update(overrides[term])
-
-    add = user_raw.get("add", []) or []
-    if add:
-        banned.extend(e for e in add if isinstance(e, dict) and e.get("term"))
 
     merged["banned"] = banned
 

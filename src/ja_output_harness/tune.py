@@ -24,7 +24,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +43,8 @@ BUNDLED_RULES_PATH = (
     Path(__file__).resolve().parent.parent.parent / "config" / "banned_terms.yaml"
 )
 
+_LOCK_TIMEOUT_SECONDS = 5.0
+
 
 def _load_user(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -49,9 +55,58 @@ def _load_user(path: Path) -> dict[str, Any]:
 
 
 def _save_user(path: Path, data: dict[str, Any]) -> None:
+    """Atomic write via tempfile + os.replace (gpt-5.4 review #48)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+@contextmanager
+def _locked_rewrite(path: Path, timeout: float = _LOCK_TIMEOUT_SECONDS):
+    """Best-effort cross-platform lock for read-modify-write of the override.
+
+    Uses a sibling ``<name>.lock`` file created with O_CREAT|O_EXCL as the
+    mutex. Stale locks older than ``timeout`` are forcibly removed so a
+    crashed writer does not wedge the CLI indefinitely (gpt-5.4 review #48).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            break
+        except FileExistsError:
+            if time.monotonic() > deadline:
+                try:
+                    if lock_path.exists():
+                        age = time.time() - lock_path.stat().st_mtime
+                        if age > timeout:
+                            lock_path.unlink()
+                            continue
+                except OSError:
+                    pass
+                raise RuntimeError(f"timeout acquiring lock: {lock_path}")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except OSError:
+            pass
 
 
 def cmd_path(_args: argparse.Namespace) -> int:
@@ -79,31 +134,33 @@ def cmd_show(_args: argparse.Namespace) -> int:
 
 def cmd_disable(args: argparse.Namespace) -> int:
     path = resolve_user_config_path()
-    data = _load_user(path)
-    disabled = list(data.get("disable", []) or [])
-    if args.term in disabled:
-        print(f"already disabled: {args.term}", file=sys.stderr)
-        return 0
-    disabled.append(args.term)
-    data["disable"] = disabled
-    _save_user(path, data)
+    with _locked_rewrite(path):
+        data = _load_user(path)
+        disabled = list(data.get("disable", []) or [])
+        if args.term in disabled:
+            print(f"already disabled: {args.term}", file=sys.stderr)
+            return 0
+        disabled.append(args.term)
+        data["disable"] = disabled
+        _save_user(path, data)
     print(f"disabled: {args.term}  ({path})")
     return 0
 
 
 def cmd_enable(args: argparse.Namespace) -> int:
     path = resolve_user_config_path()
-    data = _load_user(path)
-    disabled = list(data.get("disable", []) or [])
-    if args.term not in disabled:
-        print(f"not in disable list: {args.term}", file=sys.stderr)
-        return 1
-    disabled.remove(args.term)
-    if disabled:
-        data["disable"] = disabled
-    else:
-        data.pop("disable", None)
-    _save_user(path, data)
+    with _locked_rewrite(path):
+        data = _load_user(path)
+        disabled = list(data.get("disable", []) or [])
+        if args.term not in disabled:
+            print(f"not in disable list: {args.term}", file=sys.stderr)
+            return 1
+        disabled.remove(args.term)
+        if disabled:
+            data["disable"] = disabled
+        else:
+            data.pop("disable", None)
+        _save_user(path, data)
     print(f"enabled: {args.term}  ({path})")
     return 0
 
@@ -116,13 +173,24 @@ def cmd_set_severity(args: argparse.Namespace) -> int:
         )
         return 2
     path = resolve_user_config_path()
-    data = _load_user(path)
-    overrides = dict(data.get("overrides", {}) or {})
-    entry = dict(overrides.get(args.term, {}) or {})
-    entry["severity"] = args.severity
-    overrides[args.term] = entry
-    data["overrides"] = overrides
-    _save_user(path, data)
+    # Reject unknown terms (gpt-5.4 review #44) — consult the merged view so
+    # both bundled entries and user-added terms are honored.
+    cfg = load_rules(BUNDLED_RULES_PATH, path)
+    known_terms = {entry.get("term", "") for entry in cfg.banned}
+    if args.term not in known_terms:
+        print(
+            f"unknown term: {args.term} (not in bundled or user-added list)",
+            file=sys.stderr,
+        )
+        return 1
+    with _locked_rewrite(path):
+        data = _load_user(path)
+        overrides = dict(data.get("overrides", {}) or {})
+        entry = dict(overrides.get(args.term, {}) or {})
+        entry["severity"] = args.severity
+        overrides[args.term] = entry
+        data["overrides"] = overrides
+        _save_user(path, data)
     print(f"{args.term}.severity = {args.severity}  ({path})")
     return 0
 
@@ -135,17 +203,22 @@ def cmd_add(args: argparse.Namespace) -> int:
         )
         return 2
     path = resolve_user_config_path()
-    data = _load_user(path)
-    added = list(data.get("add", []) or [])
-    if any(e.get("term") == args.term for e in added):
-        print(f"already added: {args.term} (use `remove` first to update)", file=sys.stderr)
-        return 1
-    entry: dict[str, str] = {"term": args.term, "suggest": args.suggest, "severity": args.severity}
-    if args.category:
-        entry["category"] = args.category
-    added.append(entry)
-    data["add"] = added
-    _save_user(path, data)
+    with _locked_rewrite(path):
+        data = _load_user(path)
+        added = list(data.get("add", []) or [])
+        if any(e.get("term") == args.term for e in added):
+            print(f"already added: {args.term} (use `remove` first to update)", file=sys.stderr)
+            return 1
+        entry: dict[str, str] = {
+            "term": args.term,
+            "suggest": args.suggest,
+            "severity": args.severity,
+        }
+        if args.category:
+            entry["category"] = args.category
+        added.append(entry)
+        data["add"] = added
+        _save_user(path, data)
     print(f"added: {args.term}  ({path})")
     return 0
 
@@ -201,17 +274,18 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 def cmd_remove(args: argparse.Namespace) -> int:
     path = resolve_user_config_path()
-    data = _load_user(path)
-    added = list(data.get("add", []) or [])
-    new_added = [e for e in added if e.get("term") != args.term]
-    if len(new_added) == len(added):
-        print(f"not in add list: {args.term}", file=sys.stderr)
-        return 1
-    if new_added:
-        data["add"] = new_added
-    else:
-        data.pop("add", None)
-    _save_user(path, data)
+    with _locked_rewrite(path):
+        data = _load_user(path)
+        added = list(data.get("add", []) or [])
+        new_added = [e for e in added if e.get("term") != args.term]
+        if len(new_added) == len(added):
+            print(f"not in add list: {args.term}", file=sys.stderr)
+            return 1
+        if new_added:
+            data["add"] = new_added
+        else:
+            data.pop("add", None)
+        _save_user(path, data)
     print(f"removed: {args.term}  ({path})")
     return 0
 
