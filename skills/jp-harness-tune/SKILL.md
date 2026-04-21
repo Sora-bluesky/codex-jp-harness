@@ -30,6 +30,48 @@ codex-jp-tune show
 3. **追加** — プロジェクト固有の避けたい語をルールに追加したい
 4. **削除（add の取り消し）** — 以前 add した語を外したい
 5. **確認のみ** — 今の状態を見たいだけ
+6. **候補抽出（discover）** — 最近の Codex 出力を見せるので、未登録の生英語候補を抽出して追加判断したい
+
+## Step 2b: discover フロー（意図 6 の場合）
+
+利用者が 6 を選んだ場合のみ、このフローを回す。他の意図なら Step 3 へ進む。
+
+### 2b-1. 入力を受け取る
+
+次のいずれかで Codex 出力を取得する:
+
+- **paste 方式**: 「直近の Codex 応答を貼ってください（終端は空行 2 回）」と案内し、paste 内容を一時ファイルに保存
+- **file 方式**: ログや handoff メモのパスを指定してもらう（例: `.claude/local/operator-handoff.md`）
+
+### 2b-2. 候補を抽出
+
+```bash
+codex-jp-tune discover --file <path> --top 20
+# もしくは stdin 経由:
+cat <path> | codex-jp-tune discover --stdin --top 20
+```
+
+出力は TSV 4 列: `count \t term \t 推奨言い換え \t 代表文脈`。
+
+### 2b-3. 1 語ずつヒアリング
+
+抽出された候補を上から順に提示し、1 語ずつ以下を確認する:
+
+- **追加するか**（Y/N）。UI ラベルや製品名、固有名詞（例: `Back to Code`, `Ports`）は N が基本
+- **推奨言い換え**: `suggest` 列の提案をそのまま採用するか、別案を書いてもらう。提案が空欄のケースは必ず利用者に入力を促す
+- **severity**: 既定 ERROR で良いか。一般名詞の wrapper / helper 等は WARNING で十分な場合もある
+
+1 語ごとに合意が取れた時点で次を実行:
+
+```bash
+codex-jp-tune add <term> --suggest "<言い換え>" --severity <ERROR|WARNING|INFO>
+```
+
+### 2b-4. 反映確認とロールバック案内
+
+一括追加が終わったら `codex-jp-tune show` で反映を確認する。取り消したい語があれば `codex-jp-tune remove <term>` で戻せる旨を伝える。
+
+Codex の再起動は不要（MCP サーバーは override を毎回読み直す）。
 
 ## Step 3: 判断の支援
 

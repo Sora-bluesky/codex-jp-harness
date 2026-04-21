@@ -235,7 +235,27 @@ codex-jp-tune enable slice                      # 戻す
 codex-jp-tune set-severity handoff WARNING      # severity を差し替え
 codex-jp-tune add foobar --suggest "foobar は日本語訳を使う" --severity ERROR
 codex-jp-tune remove foobar
+codex-jp-tune discover --file <path>            # Codex 出力から候補を抽出（v0.2.18+）
 ```
+
+### 候補の発掘（discover）
+
+Codex の実際の出力には、バンドル済み禁止語に含まれない生英語（`preview` / `review` / `iframe` / `composer` / `overlay` / `context` / `drawer` など）が頻繁に混ざります。手動で 1 語ずつ追加するのは大変なので、`codex-jp-tune discover` が **貼ったドラフトから未登録の候補を頻度順で抽出**します。
+
+```bash
+# ログファイルから抽出（上位 20 語を TSV 出力）
+codex-jp-tune discover --file .claude/local/operator-handoff.md --top 20
+
+# パイプ経由
+cat recent-output.md | codex-jp-tune discover --stdin --top 20
+
+# JSON 出力（スクリプト処理用）
+codex-jp-tune discover --file recent.md --format json --top 20
+```
+
+出力列: `count` / `term` / `suggested_replacement`（辞書から自動補完）/ `first_context`。
+
+対話的に候補を追加するには `$jp-harness-tune` スキルを呼び出し、意図 **6. 候補抽出** を選んでください。スキルが 1 語ずつ追加可否・言い換え・severity を確認しながら `codex-jp-tune add` を繰り返します。
 
 ### Codex Skill `$jp-harness-tune` — チューニング専用の対話スキル
 

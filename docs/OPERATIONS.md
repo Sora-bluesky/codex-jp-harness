@@ -24,6 +24,20 @@ codex-jp-stats tail 20            # 末尾 20 行を生 JSON で表示
 
 `show` の `fast-path:` 行（v0.2.17 以降）は、server-side 自動修正（`banned_term` のみの ERROR を `rewritten` で返すケース）が全呼び出しの何 % を占めたかを示す。高いほど retry 往復が削減されている。
 
+## 候補語の発掘（v0.2.18 以降）
+
+Codex 出力に頻出する生英語のうち、バンドル済み禁止語に入っていないものは `finalize` をすり抜けてしまう。月次でログや最近の応答から候補を抽出し、user-local override に追加する運用が推奨される。
+
+```bash
+# 最近の出力ログから頻度上位の生英語を抽出
+codex-jp-tune discover --file .claude/local/operator-handoff.md --top 20
+
+# 推奨: 対話的に追加するにはスキル経由
+# Codex の入力欄で `$jp-harness-tune` を選択 → 意図 6（候補抽出）を選ぶ
+```
+
+scan 対象は日本語文中の連続した英字（長さ 3 以上）。内蔵 allowlist（`API`, `HTTP`, `MCP`, `CI`, `PR` 等の標準語彙、`GitHub` / `OpenAI` 等の固有名詞）と既存 banned_term を除外する。候補語には `discover.SUGGESTION_DICT` で自動的に推奨言い換えが付与される（未登録の語は空欄、skill 経由で利用者が決める）。
+
 `overhead` は「draft が tool 引数と最終メッセージで 2 回 output される」前提で、retry 回数から `avg output-factor = retry_rate + 2.0` を出力する。月次でこの値を記録すると、トークンコスト増分のトレンドが追える。
 
 **ローテーション**: active file が 20 MB を超えると自動で `jp-harness-metrics.1.jsonl` に退避され、新しい active が始まる。保持世代は 1 のみなので総使用量は約 40 MB で頭打ち。`codex-jp-stats` は archive と active を連結して読むため、ローテーションで履歴が失われることはない（古い archive は次回ローテーション時に上書きされる点のみ注意）。

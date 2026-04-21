@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.18] - 2026-04-21
+
+v0.2.17 の fast-path は `banned_terms.yaml` に入っている語しか直せず、実運用では fast-path 発火率が 3.1% に留まっていた。原因は Codex 出力に頻出する生英語（`preview` / `review` / `iframe` / `composer` / `overlay` / `drawer` / `context` / `harness` 等）がバンドル済み禁止語の範囲外だったこと。バンドル拡張ではプロジェクト固有の語彙差に追いつけないため、**観測ドラフトから候補を抽出して利用者ごとに育てる** フローへ舵を切る。
+
+### Added
+- **`codex-jp-tune discover` サブコマンド**: stdin またはファイルから日本語ドラフトを受け取り、未登録の生英語候補を頻度順に抽出する。TSV（既定）/ JSON 両対応、`--top N` / `--min-occurrences N` でチューニング可能。
+- **`src/codex_jp_harness/discover.py`**: 純関数 `scan_text()` + `Candidate` dataclass。既存の `_strip_code_blocks` / `_mask_inline_code` / `_mask_markdown_links` を再利用して code span・markdown link URL を除外。内蔵 `DEFAULT_ALLOWLIST`（`API` / `HTTP` / `JSON` / `CI` / `PR` / `MCP` / `GitHub` / `OpenAI` などの標準語彙、約 70 語）で標準英語を弾く。`SUGGESTION_DICT` で約 30 語に自動推奨言い換えを付与。
+- **skill `$jp-harness-tune` に意図 6「候補抽出（discover）」を追加**。paste / file いずれからでも Codex 出力を受け取り、候補を 1 語ずつ「追加するか」「推奨言い換え」「severity」を対話ヒアリングしてから `codex-jp-tune add` を繰り返す。UI ラベルや固有名詞は skip を促す。
+
+### Changed
+- **`tune.py` に UTF-8 stdin/stdout/stderr 強制**。cp932 デフォルトの Windows コンソールで discover の Japanese snippet が `UnicodeEncodeError` で落ちる問題を塞いだ（v0.2.11 の stats.py / v0.2.12 の .ps1 hooks と同パターン）。
+- **`README.md` Section 4 の運用フロー節**に discover の紹介とコマンド例を追記。
+- **`docs/OPERATIONS.md`** に「月次で `discover` を走らせて候補追加」を推奨運用として追記。
+
+### Notes
+- pytest 130 件（+19）全通過。ruff clean。
+- 既存コマンド（`show` / `path` / `disable` / `enable` / `set-severity` / `add` / `remove`）は変更なし。スキーマ破壊なし。
+- dogfooding: 実運用中の別プロジェクトのセッション出力の一部で `preview` / `review` / `drawer` / `terminal` / `desktop` / `code` / `back` が候補として上がることを確認。`SUGGESTION_DICT` 登録済みの語には「プレビュー、確認用」「レビュー」「引き出しパネル」等が自動併記される。
+- 期待される効果: 利用者が 10〜20 語を `add` すれば、次の `finalize` からそれらが ERROR として検出され、fast-path で自動修正されるようになる。結果として fast-path 発火率が上がり、output-factor が下がる。
+
 ## [0.2.17] - 2026-04-21
 
 v0.2.16 で実測反映した output-factor 3.11× を下げるための仕組み改善。`finalize` に **fast path**（server-side 自動修正）を追加し、違反がすべて決定的に置換可能な `banned_term` の場合は LLM rewrite を経由せず server が直接書き換えた draft を返す。既存クライアントは `fixed:true` を無視しても動作継続（後方互換）。

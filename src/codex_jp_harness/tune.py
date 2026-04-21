@@ -13,6 +13,7 @@ Commands
 - ``set-severity <term> <L>`` override severity (ERROR/WARNING/INFO)
 - ``add <term> --suggest S``  add a project-specific banned term
 - ``remove <term>``           remove a previously added term
+- ``discover``                scan text for candidate banned terms
 
 The override file is loaded line-by-line as YAML. Comments are NOT
 preserved on rewrite (PyYAML limitation); users who want to keep rich
@@ -22,12 +23,14 @@ structure should hand-edit the file directly.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from codex_jp_harness.discover import scan_text, suggest_for
 from codex_jp_harness.rules import load_rules, resolve_user_config_path
 
 VALID_SEVERITIES = ("ERROR", "WARNING", "INFO")
@@ -147,6 +150,55 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_discover(args: argparse.Namespace) -> int:
+    """Scan text for unregistered English-noun candidates.
+
+    Source precedence: ``--file`` > ``--stdin`` > auto-detect stdin.
+    Output format: TSV by default (``count\\tterm\\tcontext``) or JSON when
+    ``--format json`` is passed. The effective banned term set (bundled +
+    user override) is excluded so the list is actionable as-is.
+    """
+    if args.file:
+        text = Path(args.file).expanduser().read_text(encoding="utf-8")
+    elif args.stdin or not sys.stdin.isatty():
+        text = sys.stdin.read()
+    else:
+        print("discover: pass --file PATH or pipe text to stdin", file=sys.stderr)
+        return 2
+
+    cfg = load_rules(BUNDLED_RULES_PATH, resolve_user_config_path())
+    existing = {entry.get("term", "") for entry in cfg.banned if entry.get("term")}
+    candidates = scan_text(
+        text,
+        existing_terms=existing,
+        min_occurrences=args.min_occurrences,
+        max_contexts=3,
+    )
+    top = candidates[: args.top] if args.top > 0 else candidates
+
+    if args.format == "json":
+        print(
+            json.dumps(
+                [
+                    {
+                        **c.to_dict(),
+                        "suggested_replacement": suggest_for(c.term) or "",
+                    }
+                    for c in top
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        # TSV: count \t term \t suggested_replacement \t first_context
+        for c in top:
+            ctx = c.contexts[0] if c.contexts else ""
+            suggestion = suggest_for(c.term) or ""
+            print(f"{c.count}\t{c.term}\t{suggestion}\t{ctx}")
+    return 0
+
+
 def cmd_remove(args: argparse.Namespace) -> int:
     path = resolve_user_config_path()
     data = _load_user(path)
@@ -204,10 +256,44 @@ def build_parser() -> argparse.ArgumentParser:
     p_rm.add_argument("term")
     p_rm.set_defaults(func=cmd_remove)
 
+    p_disc = sub.add_parser(
+        "discover",
+        help="scan text (stdin or --file) for candidate banned terms",
+    )
+    p_disc.add_argument("--file", help="read text from this file")
+    p_disc.add_argument(
+        "--stdin", action="store_true", help="force reading from stdin"
+    )
+    p_disc.add_argument(
+        "--top", type=int, default=20, help="max candidates to print (0=all, default 20)"
+    )
+    p_disc.add_argument(
+        "--min-occurrences",
+        type=int,
+        default=2,
+        help="min occurrences before surfacing (default 2)",
+    )
+    p_disc.add_argument(
+        "--format", choices=("tsv", "json"), default="tsv", help="output format (default tsv)"
+    )
+    p_disc.set_defaults(func=cmd_discover)
+
     return p
 
 
+def _force_utf8_streams() -> None:
+    """Reconfigure stdin/stdout/stderr to UTF-8 for Japanese I/O on cp932 Windows."""
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        reconfig = getattr(stream, "reconfigure", None)
+        if reconfig is not None:
+            try:
+                reconfig(encoding="utf-8")
+            except Exception:
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
