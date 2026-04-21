@@ -151,14 +151,14 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         "rspec",
         "cargo",
         "rustc",
-        # unix / shell tool names
+        # unix / shell tool names (ssh already listed in the process/tools
+        # group above)
         "grep",
         "awk",
         "sed",
         "curl",
         "wget",
         "jq",
-        "ssh",
         "scp",
         "rsync",
         # proper nouns that should stay English

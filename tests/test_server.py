@@ -11,7 +11,9 @@ from ja_output_harness.server import (
 
 class TestSummarize:
     def test_empty(self):
-        assert _summarize([]) == "0件の違反を検出 ()"
+        # v0.3.6 (gpt-5.4 review #56): empty summary no longer carries the
+        # vestigial empty parenthesis.
+        assert _summarize([]) == "0件の違反を検出"
 
     def test_only_error(self):
         violations = [
