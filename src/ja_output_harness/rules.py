@@ -13,7 +13,6 @@ from typing import Any
 
 import yaml
 
-
 _SNIPPET_MAX_CHARS = 50
 _PAYLOAD_EXCLUDE_FIELDS = frozenset({"fix", "category"})
 

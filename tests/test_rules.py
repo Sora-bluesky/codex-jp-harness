@@ -333,7 +333,12 @@ class TestVialationSerialization:
     def test_to_dict_drops_fix_field(self):
         # `fix` is duplicate of AGENTS.md per-rule instructions; drop to
         # save ~25 B per violation (v0.4.0 slim).
-        v = Violation(rule="bare_identifier", line=1, token="src/foo.py", fix="バッククォートで囲む")
+        v = Violation(
+            rule="bare_identifier",
+            line=1,
+            token="src/foo.py",
+            fix="バッククォートで囲む",
+        )
         d = v.to_dict()
         assert "fix" not in d
         assert d["token"] == "src/foo.py"
