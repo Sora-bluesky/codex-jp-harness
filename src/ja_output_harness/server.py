@@ -128,6 +128,7 @@ def finalize(draft: str) -> dict[str, Any]:
         draft=draft,
         violations_count=len(violations),
         severity_counts=dict(severity_counts),
+        rule_counts=dict(Counter(v.rule for v in violations)),
         response=response,
         elapsed_ms=elapsed_ms,
         fixed=fixed,

@@ -111,6 +111,48 @@ def cmd_show(args: argparse.Namespace) -> int:
         f"{total_draft_chars} chars emitted via tool-call argument "
         "(duplicates the final response body when ok=true)."
     )
+
+    # Rule distribution + fast-path miss diagnosis (schema v2+).
+    from collections import Counter
+
+    rule_totals: Counter[str] = Counter()
+    miss_rules: Counter[str] = Counter()
+    miss_entries = 0
+    for e in entries:
+        rc = e.get("rule_counts") or {}
+        if not isinstance(rc, dict):
+            continue
+        for rule, n in rc.items():
+            try:
+                rule_totals[str(rule)] += int(n)
+            except (TypeError, ValueError):
+                continue
+        # A fast-path miss is: ERRORs present AND server did not auto-rewrite.
+        # In that case rule_counts reveals which rule(s) made the violation
+        # set non-auto-fixable (banned_term without replacement) or left
+        # residual ERRORs after rewrite.
+        err = int((e.get("severity_counts") or {}).get("ERROR", 0))
+        if err > 0 and not e.get("fixed") and rc:
+            miss_entries += 1
+            for rule, n in rc.items():
+                try:
+                    miss_rules[str(rule)] += int(n)
+                except (TypeError, ValueError):
+                    continue
+
+    if rule_totals:
+        print()
+        print("rule distribution (all entries):")
+        width = max(len(r) for r in rule_totals) + 2
+        for rule, count in rule_totals.most_common():
+            print(f"  {rule:<{width}} {count}")
+
+    if miss_entries:
+        print()
+        print(f"fast-path miss diagnosis ({miss_entries} entries with ERROR but no auto-rewrite):")
+        width = max(len(r) for r in miss_rules) + 2
+        for rule, count in miss_rules.most_common():
+            print(f"  {rule:<{width}} {count}")
     return 0
 
 

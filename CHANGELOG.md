@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-04-21
+
+v0.3.7 のドッグフーディングで `fast-path` 発火率 0% が観測されたが、原因切り分けに必要な情報がメトリクス jsonl に含まれていなかった。schema v2 として `rule_counts` を追加し、`ja-output-stats show` に fast-path miss 診断を追加。
+
+### Added
+- **metrics schema v2**: 各エントリに `rule_counts` (rule 名 → 件数) を追加。スキーマ v1 のエントリは読み取り時に `{}` として扱うので後方互換。
+- **`ja-output-stats show` にルール別分布**: 全エントリと「ERROR ありで fast-path 未発火」のサブセットの両方で rule_counts 集計を表示。`banned_term` が replacement 無しで applicable を落としているのか、fast-path 実行後に残存 ERROR が出ているのかを切り分けできる。
+
+### Notes
+- schema_version は `"1"` → `"2"` へ bump。読み手は `rule_counts` が missing の場合 `{}` にフォールバックすること。
+- pytest 173 件 全通過（+2）、ruff clean
+- 反映手順: `uv sync` → Codex 再起動
+
 ## [0.3.7] - 2026-04-21
 
 gpt-5.4 フォローアップレビューで検出された 6 件（MAJOR 2 / MINOR 3 / NIT 1）を一括解消。uninstall の安全性と docs の実装追従を中心に固める。
