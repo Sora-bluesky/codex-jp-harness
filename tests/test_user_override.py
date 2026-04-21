@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from codex_jp_harness.rules import load_rules, resolve_user_config_path
+from ja_output_harness.rules import load_rules, resolve_user_config_path
 
 RULES_PATH = Path(__file__).resolve().parent.parent / "config" / "banned_terms.yaml"
 
@@ -31,7 +31,7 @@ class TestResolveUserConfigPath:
         monkeypatch.delenv("CODEX_JP_HARNESS_USER_CONFIG", raising=False)
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         got = resolve_user_config_path()
-        assert got == tmp_path / "codex-jp-harness" / "jp_lint.yaml"
+        assert got == tmp_path / "ja-output-harness" / "jp_lint.yaml"
 
     def test_default_home_codex(self, monkeypatch):
         monkeypatch.delenv("CODEX_JP_HARNESS_USER_CONFIG", raising=False)

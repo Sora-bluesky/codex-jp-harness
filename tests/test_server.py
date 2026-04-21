@@ -1,7 +1,7 @@
-"""Tests for codex_jp_harness.server."""
+"""Tests for ja_output_harness.server."""
 
-from codex_jp_harness.rules import Violation
-from codex_jp_harness.server import _fast_path_applicable, _summarize, finalize
+from ja_output_harness.rules import Violation
+from ja_output_harness.server import _fast_path_applicable, _summarize, finalize
 
 
 class TestSummarize:

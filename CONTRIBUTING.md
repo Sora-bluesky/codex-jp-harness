@@ -8,13 +8,13 @@
 
 ## バグ報告
 
-1. [Issues](https://github.com/sora-bluesky/codex-jp-harness/issues) を開く
+1. [Issues](https://github.com/sora-bluesky/ja-output-harness/issues) を開く
 2. `bug_report` テンプレートに従って記述
 3. 再現手順、期待動作、実際の動作、環境情報（OS, Python version, Codex version）を含める
 
 ## 機能提案
 
-1. [Issues](https://github.com/sora-bluesky/codex-jp-harness/issues) で `feature_request` テンプレートを使用
+1. [Issues](https://github.com/sora-bluesky/ja-output-harness/issues) で `feature_request` テンプレートを使用
 2. なぜその機能が必要か（Why）を明確に
 3. 代替案の検討結果も記載
 
@@ -29,8 +29,8 @@
 ## 開発環境セットアップ
 
 ```powershell
-git clone https://github.com/sora-bluesky/codex-jp-harness.git
-cd codex-jp-harness
+git clone https://github.com/sora-bluesky/ja-output-harness.git
+cd ja-output-harness
 uv sync
 uv run pytest
 ```

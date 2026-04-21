@@ -1,10 +1,10 @@
-"""Unit tests for codex_jp_harness.rules."""
+"""Unit tests for ja_output_harness.rules."""
 
 from pathlib import Path
 
 import pytest
 
-from codex_jp_harness.rules import (
+from ja_output_harness.rules import (
     Violation,
     apply_auto_fix,
     apply_backtick_fix,

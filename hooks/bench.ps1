@@ -1,4 +1,4 @@
-# codex-jp-harness: hooks benchmark (Windows / PowerShell 7+)
+# ja-output-harness: hooks benchmark (Windows / PowerShell 7+)
 #
 # Runs each hook 10 times with synthetic payload and reports mean / max latency.
 # Targets:
@@ -49,6 +49,6 @@ function Measure-Hook {
     Write-Host ("[{0}] {1}: mean={2:F1} ms, max={3:F1} ms (target <{4} ms)" -f $status, $Name, $mean, $max, $Target)
 }
 
-Write-Host '[codex-jp-harness] hooks benchmark (10 runs each)'
+Write-Host '[ja-output-harness] hooks benchmark (10 runs each)'
 Measure-Hook -Name 'Stop'         -ScriptPath $stopHook  -Payload $stopPayload  -Target 50
 Measure-Hook -Name 'SessionStart' -ScriptPath $startHook -Payload $startPayload -Target 100

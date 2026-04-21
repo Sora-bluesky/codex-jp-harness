@@ -1,4 +1,4 @@
-"""Tests for the codex-jp-tune CLI."""
+"""Tests for the ja-output-tune CLI."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from codex_jp_harness import tune
+from ja_output_harness import tune
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""Tests for ``codex_jp_harness.discover``."""
+"""Tests for ``ja_output_harness.discover``."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from codex_jp_harness import tune
-from codex_jp_harness.discover import (
+from ja_output_harness import tune
+from ja_output_harness.discover import (
     DEFAULT_ALLOWLIST,
     Candidate,
     scan_text,

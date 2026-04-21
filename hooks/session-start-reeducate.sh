@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codex-jp-harness: SessionStart hook (POSIX)
+# ja-output-harness: SessionStart hook (POSIX)
 #
 # Reads ~/.codex/state/jp-harness.jsonl and emits a reeducation prompt when
 # source is "startup" or "clear". Suppresses on "resume".
@@ -81,7 +81,7 @@ def main():
     top = counts.most_common(3)
     detail = "、".join(f"{name} ({n}回)" for name, n in top)
     msg = (
-        "[codex-jp-harness] 前回セッションで mcp__jp_lint__finalize の呼び忘れを検出しました。"
+        "[ja-output-harness] 前回セッションで mcp__jp_lint__finalize の呼び忘れを検出しました。"
         f"内訳: {detail}。"
         "日本語応答を返す前に必ず finalize を呼んでください。"
         "除外は 4 パターンのみ（コード単独 / 20字以内相槌 / yes-no / 日本語なし）。迷ったら呼ぶ。"
@@ -95,13 +95,13 @@ def main():
     try:
         state_file.write_text("\n".join(keep) + ("\n" if keep else ""), encoding="utf-8")
     except Exception as e:
-        sys.stderr.write("[codex-jp-harness] session-start-reeducate write error: " + str(e) + "\n")
+        sys.stderr.write("[ja-output-harness] session-start-reeducate write error: " + str(e) + "\n")
     return 0
 
 try:
     sys.exit(main())
 except Exception as e:
-    sys.stderr.write("[codex-jp-harness] session-start-reeducate error: " + str(e) + "\n")
+    sys.stderr.write("[ja-output-harness] session-start-reeducate error: " + str(e) + "\n")
     sys.exit(0)
 '
 exit 0

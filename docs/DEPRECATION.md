@@ -37,7 +37,7 @@ pwsh scripts\uninstall.ps1
 ### 2. リポジトリのアーカイブ
 
 ```powershell
-gh repo archive sora-bluesky/codex-jp-harness
+gh repo archive sora-bluesky/ja-output-harness
 ```
 
 README.md の冒頭に以下を追記:

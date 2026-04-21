@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codex-jp-harness installer (macOS / Linux / Git Bash on Windows)
+# ja-output-harness installer (macOS / Linux / Git Bash on Windows)
 #
 # Mirrors scripts/install.ps1 for POSIX-like shells.
 # Usage:
@@ -54,26 +54,26 @@ START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
 
 # Preflight
 if [[ ! -d "$CODEX_DIR" ]]; then
-  echo "[codex-jp-harness] Codex directory not found at $CODEX_DIR. Is Codex CLI or Codex App installed?" >&2
+  echo "[ja-output-harness] Codex directory not found at $CODEX_DIR. Is Codex CLI or Codex App installed?" >&2
   exit 1
 fi
 if [[ ! -f "$CONFIG_PATH" ]]; then
-  echo "[codex-jp-harness] Codex config.toml not found at $CONFIG_PATH" >&2
+  echo "[ja-output-harness] Codex config.toml not found at $CONFIG_PATH" >&2
   exit 1
 fi
 if [[ ! -f "$VENV_PYTHON" ]]; then
-  echo "[codex-jp-harness] .venv Python not found. Run 'uv sync' in $REPO_ROOT first." >&2
+  echo "[ja-output-harness] .venv Python not found. Run 'uv sync' in $REPO_ROOT first." >&2
   exit 1
 fi
 if [[ "$SKIP_SKILL" != "true" && ! -f "$SKILL_SRC" ]]; then
-  echo "[codex-jp-harness] SKILL.md not found at $SKILL_SRC. Re-clone the repo or pass --skip-skill to bypass." >&2
+  echo "[ja-output-harness] SKILL.md not found at $SKILL_SRC. Re-clone the repo or pass --skip-skill to bypass." >&2
   exit 1
 fi
 
 # Remove any existing [mcp_servers.jp_lint] entry (idempotent re-install)
 if grep -q '^\[mcp_servers\.jp_lint\]' "$CONFIG_PATH"; then
   if [[ "$FORCE" != "true" ]]; then
-    echo "[codex-jp-harness] [mcp_servers.jp_lint] already present. Rewriting to match current repo location."
+    echo "[ja-output-harness] [mcp_servers.jp_lint] already present. Rewriting to match current repo location."
   fi
   tmp="$(mktemp)"
   awk '
@@ -92,17 +92,17 @@ python_path_escaped="${VENV_PYTHON//\\/\\\\}"
   echo ""
   echo "[mcp_servers.jp_lint]"
   echo "command = \"${python_path_escaped}\""
-  echo 'args = ["-m", "codex_jp_harness.server"]'
+  echo 'args = ["-m", "ja_output_harness.server"]'
 } >> "$CONFIG_PATH"
-echo "[codex-jp-harness] Registered [mcp_servers.jp_lint] with venv Python: $VENV_PYTHON"
+echo "[ja-output-harness] Registered [mcp_servers.jp_lint] with venv Python: $VENV_PYTHON"
 
 # AGENTS.md rule handling
 if [[ -f "$AGENTS_PATH" ]]; then
   if grep -q 'mcp__jp_lint__finalize' "$AGENTS_PATH"; then
-    echo "[codex-jp-harness] AGENTS.md already references finalize rule. OK."
+    echo "[ja-output-harness] AGENTS.md already references finalize rule. OK."
   elif [[ "$APPEND_AGENTS_RULE" == "true" ]]; then
     if [[ ! -f "$RULE_BLOCK_PATH" ]]; then
-      echo "[codex-jp-harness] agents_rule.md not found at $RULE_BLOCK_PATH" >&2
+      echo "[ja-output-harness] agents_rule.md not found at $RULE_BLOCK_PATH" >&2
       exit 1
     fi
     # Strip HTML comment block
@@ -112,15 +112,15 @@ if [[ -f "$AGENTS_PATH" ]]; then
       printf '\n' >> "$AGENTS_PATH"
     fi
     printf '%s\n' "$rule_stripped" >> "$AGENTS_PATH"
-    echo "[codex-jp-harness] Appended finalize rule block to AGENTS.md"
+    echo "[ja-output-harness] Appended finalize rule block to AGENTS.md"
   else
     echo ""
-    echo "[codex-jp-harness] AGENTS.md does not yet reference the finalize rule."
-    echo "[codex-jp-harness] Re-run with --append-agents-rule to append automatically,"
-    echo "[codex-jp-harness] or manually append the content of config/agents_rule.md."
+    echo "[ja-output-harness] AGENTS.md does not yet reference the finalize rule."
+    echo "[ja-output-harness] Re-run with --append-agents-rule to append automatically,"
+    echo "[ja-output-harness] or manually append the content of config/agents_rule.md."
   fi
 else
-  echo "[codex-jp-harness] AGENTS.md not found; skipping rule handling."
+  echo "[ja-output-harness] AGENTS.md not found; skipping rule handling."
 fi
 
 # Skill placement
@@ -140,21 +140,21 @@ sha256_of() {
 }
 
 if [[ "$SKIP_SKILL" == "true" ]]; then
-  echo "[codex-jp-harness] Skipping skill placement (--skip-skill)."
+  echo "[ja-output-harness] Skipping skill placement (--skip-skill)."
 else
   mkdir -p "$SKILL_DEST_DIR"
   if [[ ! -f "$SKILL_DEST_PATH" ]]; then
     cp -f "$SKILL_SRC" "$SKILL_DEST_PATH"
-    echo "[codex-jp-harness] Installed skill: $SKILL_DEST_PATH"
+    echo "[ja-output-harness] Installed skill: $SKILL_DEST_PATH"
   else
     src_hash="$(sha256_of "$SKILL_SRC")"
     dest_hash="$(sha256_of "$SKILL_DEST_PATH")"
     if [[ -z "$src_hash" || -z "$dest_hash" ]]; then
-      echo "[codex-jp-harness] No SHA-256 tool found; skipping skill overwrite to be safe at $SKILL_DEST_PATH" >&2
+      echo "[ja-output-harness] No SHA-256 tool found; skipping skill overwrite to be safe at $SKILL_DEST_PATH" >&2
     elif [[ "$src_hash" == "$dest_hash" ]]; then
-      echo "[codex-jp-harness] Skill up to date: $SKILL_DEST_PATH"
+      echo "[ja-output-harness] Skill up to date: $SKILL_DEST_PATH"
     else
-      echo "[codex-jp-harness] Existing SKILL.md at $SKILL_DEST_PATH differs from the bundled version. Skip overwrite to preserve your edits. Remove the file manually and re-run to reinstall." >&2
+      echo "[ja-output-harness] Existing SKILL.md at $SKILL_DEST_PATH differs from the bundled version. Skip overwrite to preserve your edits. Remove the file manually and re-run to reinstall." >&2
     fi
   fi
 fi
@@ -162,12 +162,12 @@ fi
 # Hooks placement (opt-in, experimental, Codex 0.120.0+)
 if [[ "$ENABLE_HOOKS" == "true" ]]; then
   echo ""
-  echo "[codex-jp-harness] --enable-hooks: configuring Stop + SessionStart hooks (experimental)."
+  echo "[ja-output-harness] --enable-hooks: configuring Stop + SessionStart hooks (experimental)."
 
   codex_version_ok=false
   if command -v codex >/dev/null 2>&1; then
     version_str="$(codex --version 2>/dev/null || true)"
-    echo "[codex-jp-harness] Detected Codex version: $version_str"
+    echo "[ja-output-harness] Detected Codex version: $version_str"
     if [[ "$version_str" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
       major="${BASH_REMATCH[1]}"
       minor="${BASH_REMATCH[2]}"
@@ -178,19 +178,19 @@ if [[ "$ENABLE_HOOKS" == "true" ]]; then
   fi
 
   if [[ "$codex_version_ok" != "true" ]]; then
-    echo "[codex-jp-harness] Codex 0.120.0 or later (CLI or App) is required for hooks. Skipping hooks setup." >&2
+    echo "[ja-output-harness] Codex 0.120.0 or later (CLI or App) is required for hooks. Skipping hooks setup." >&2
   elif [[ ! -f "$STOP_HOOK_PATH" || ! -f "$START_HOOK_PATH" || ! -f "$HOOKS_TEMPLATE" ]]; then
-    echo "[codex-jp-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
+    echo "[ja-output-harness] Hooks source files missing in repo. Skipping hooks setup." >&2
   else
     # Ensure codex_hooks = true in config.toml (idempotent)
     if grep -qE '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true\b' "$CONFIG_PATH"; then
-      echo "[codex-jp-harness] codex_hooks = true already set in config.toml."
+      echo "[ja-output-harness] codex_hooks = true already set in config.toml."
     else
       if [[ -n "$(tail -c1 "$CONFIG_PATH")" ]]; then
         printf '\n' >> "$CONFIG_PATH"
       fi
       printf 'codex_hooks = true\n' >> "$CONFIG_PATH"
-      echo "[codex-jp-harness] Set codex_hooks = true in config.toml."
+      echo "[ja-output-harness] Set codex_hooks = true in config.toml."
     fi
 
     # Build absolute commands
@@ -208,29 +208,29 @@ sys.stdout.write(tpl.replace("{{STOP_COMMAND}}", stop_cmd).replace("{{SESSION_ST
 PY
 )"
     if [[ -z "$rendered" ]]; then
-      echo "[codex-jp-harness] Failed to render hooks.json template (python3 required)." >&2
+      echo "[ja-output-harness] Failed to render hooks.json template (python3 required)." >&2
     elif [[ -f "$HOOKS_JSON_PATH" ]]; then
       existing="$(cat "$HOOKS_JSON_PATH")"
       if [[ "$(printf '%s' "$existing" | tr -d '[:space:]')" == "$(printf '%s' "$rendered" | tr -d '[:space:]')" ]]; then
-        echo "[codex-jp-harness] hooks.json already up to date."
+        echo "[ja-output-harness] hooks.json already up to date."
       elif [[ "$FORCE_HOOKS" == "true" ]]; then
         printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
-        echo "[codex-jp-harness] Overwrote existing hooks.json (--force-hooks)."
+        echo "[ja-output-harness] Overwrote existing hooks.json (--force-hooks)."
       else
-        echo "[codex-jp-harness] Existing hooks.json at $HOOKS_JSON_PATH differs from bundled template." >&2
-        echo "[codex-jp-harness] Review and re-run with --force-hooks to overwrite, or merge manually." >&2
-        echo "[codex-jp-harness] Bundled template path: $HOOKS_TEMPLATE" >&2
+        echo "[ja-output-harness] Existing hooks.json at $HOOKS_JSON_PATH differs from bundled template." >&2
+        echo "[ja-output-harness] Review and re-run with --force-hooks to overwrite, or merge manually." >&2
+        echo "[ja-output-harness] Bundled template path: $HOOKS_TEMPLATE" >&2
       fi
     else
       printf '%s' "$rendered" > "$HOOKS_JSON_PATH"
-      echo "[codex-jp-harness] Wrote $HOOKS_JSON_PATH"
+      echo "[ja-output-harness] Wrote $HOOKS_JSON_PATH"
     fi
   fi
 fi
 
 echo ""
-echo "[codex-jp-harness] Installation complete."
-echo "[codex-jp-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill."
+echo "[ja-output-harness] Installation complete."
+echo "[ja-output-harness] Restart Codex (CLI or App) to activate the MCP server and the jp-harness-tune skill."
 if [[ "$ENABLE_HOOKS" == "true" ]]; then
-  echo "[codex-jp-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details."
+  echo "[ja-output-harness] Hooks (experimental) require Codex 0.120.0+ (CLI or App). See docs/HOOKS.md for details."
 fi

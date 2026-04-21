@@ -1,4 +1,4 @@
-"""``codex-jp-tune`` — manage the user-local override of jp_lint rules.
+"""``ja-output-tune`` — manage the user-local override of jp_lint rules.
 
 The server loads bundled ``config/banned_terms.yaml`` and, on top of it,
 merges a user-local override file (default ``~/.codex/jp_lint.yaml``).
@@ -30,8 +30,8 @@ from typing import Any
 
 import yaml
 
-from codex_jp_harness.discover import scan_text, suggest_for
-from codex_jp_harness.rules import load_rules, resolve_user_config_path
+from ja_output_harness.discover import scan_text, suggest_for
+from ja_output_harness.rules import load_rules, resolve_user_config_path
 
 VALID_SEVERITIES = ("ERROR", "WARNING", "INFO")
 
@@ -218,8 +218,8 @@ def cmd_remove(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="codex-jp-tune",
-        description="Manage user-local overrides for the codex-jp-harness lint rules.",
+        prog="ja-output-tune",
+        description="Manage user-local overrides for the ja-output-harness lint rules.",
     )
     sub = p.add_subparsers(dest="command", required=True)
 

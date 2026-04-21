@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codex-jp-harness: hooks benchmark (POSIX)
+# ja-output-harness: hooks benchmark (POSIX)
 #
 # Runs each hook 10 times with synthetic payload and reports mean / max latency.
 # Targets:
@@ -53,6 +53,6 @@ print(f"[{status}] {name}: mean={mean:.1f} ms, max={mx:.1f} ms (target <{target}
 '
 }
 
-echo '[codex-jp-harness] hooks benchmark (10 runs each)'
+echo '[ja-output-harness] hooks benchmark (10 runs each)'
 measure_hook 'Stop'         "$STOP_HOOK"  "$STOP_PAYLOAD"  50
 measure_hook 'SessionStart' "$START_HOOK" "$START_PAYLOAD" 100

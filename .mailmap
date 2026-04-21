@@ -1,4 +1,4 @@
-# Mailmap for codex-jp-harness
+# Mailmap for ja-output-harness
 # Provides display-level alias for commit author identities.
 # Note: this only affects how `git log` formats output. Raw commit
 # objects on the remote retain the original author email.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codex-jp-harness: Stop hook (POSIX)
+# ja-output-harness: Stop hook (POSIX)
 #
 # Detects whether the just-completed turn produced a Japanese assistant reply
 # without calling mcp__jp_lint__finalize. Records a missing-finalize entry to
@@ -80,13 +80,13 @@ def main():
         with state_file.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
-        sys.stderr.write("[codex-jp-harness] stop-finalize-check write error: " + str(e) + "\n")
+        sys.stderr.write("[ja-output-harness] stop-finalize-check write error: " + str(e) + "\n")
     return 0
 
 try:
     sys.exit(main())
 except Exception as e:
-    sys.stderr.write("[codex-jp-harness] stop-finalize-check error: " + str(e) + "\n")
+    sys.stderr.write("[ja-output-harness] stop-finalize-check error: " + str(e) + "\n")
     sys.exit(0)
 '
 exit 0

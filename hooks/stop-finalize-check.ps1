@@ -1,4 +1,4 @@
-# codex-jp-harness: Stop hook
+# ja-output-harness: Stop hook
 #
 # Determines whether the just-completed turn produced a Japanese assistant
 # reply without calling mcp__jp_lint__finalize, and records a missing-finalize
@@ -90,7 +90,7 @@ try {
     exit 0
 } catch {
     try {
-        [Console]::Error.WriteLine("[codex-jp-harness] stop-finalize-check error: $_")
+        [Console]::Error.WriteLine("[ja-output-harness] stop-finalize-check error: $_")
     } catch {}
     exit 0
 }
