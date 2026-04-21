@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-04-21
+
+gpt-5.4 フォローアップレビューで検出された 6 件（MAJOR 2 / MINOR 3 / NIT 1）を一括解消。uninstall の安全性と docs の実装追従を中心に固める。
+
+### Fixed (MAJOR)
+- **uninstall が `codex_hooks = true` を無条件削除** (follow-up MAJOR): `hooks.json` の ja-output-harness エントリを prune した結果、他の hook がまったく残っていない場合にのみ `codex_hooks = true` を外すよう変更。共存する他プラグインの hook を巻き込まない。
+- **uninstall の hook 所有判定が部分一致だけ** (follow-up MAJOR): `scripts/uninstall.{sh,ps1}` が `$REPO_ROOT` から導いた hook script の**絶対パス**でまず照合し、失敗時のみ `ja-output-harness` / `codex-jp-harness` の repo マーカー文字列にフォールバック。任意ディレクトリ名で clone されたリポからの install/uninstall でも正しく掃除される。
+
+### Fixed (MINOR)
+- **Stop hook regex が server 名を見ていなかった** (follow-up MINOR): `.ps1` / `.sh` 両方の判定から単独 `"name":"finalize"` マッチを外し、`mcp__jp_lint__finalize` の完全修飾名のみで判定。別 MCP server が同名 tool を持つ場合の誤 skip を解消。
+- **README / docs/HOOKS.md の uninstall 記述が v0.3.4+ 実装と乖離** (follow-up MINOR / 初回レビュー #50 の docs 追従漏れ): 現行 3 段階挙動（mcp 削除 / hooks prune / codex_hooks 条件付き削除）と AGENTS.md が手動である理由を明記。残骸確認コマンドも追加。
+- **`test_version_sync` が source tree しか見ない** (follow-up MINOR): `importlib.metadata.version("ja-output-harness")` を追加で突き合わせ、パッケージ配布物の `METADATA` との乖離も CI で検知できるようにした。
+
+### Fixed (NIT)
+- **`cmd_discover` の decode fallback コメントが `latin-1` と書かれていたが実装は UTF-8 replacement** (follow-up NIT): コメントを実装に合わせて修正。
+
+### Notes
+- pytest 171 件 全通過（+1）、ruff clean
+- 反映手順: `uv sync` → 必要なら install / uninstall を再実行 → Codex 再起動
+
 ## [0.3.6] - 2026-04-21
 
 gpt-5.4 code review の NIT 3 件をまとめて掃除 (#56, #57, #58)。挙動変更は軽微な 1 件のみ（summary 文言）。

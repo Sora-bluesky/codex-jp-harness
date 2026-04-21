@@ -229,14 +229,24 @@ state ファイルに未消化エントリがあれば stdout にプロンプト
 
 ## アンインストール
 
-`scripts/uninstall.ps1` / `scripts/uninstall.sh` は `config.toml` の `[mcp_servers.jp_lint]` のみ削除する。hooks については現状手動削除:
+`scripts/uninstall.ps1` / `scripts/uninstall.sh`（v0.3.4 以降）は以下を自動実行する:
+
+1. `config.toml` の `[mcp_servers.jp_lint]` ブロックを削除（`.bak` に退避）
+2. `hooks.json` 内で ja-output-harness の hook script（絶対パス、または `ja-output-harness` / `codex-jp-harness` マーカー）を参照するエントリを削除。すべて除去されて `hooks.json` が空になる場合はファイル自体を削除（`.bak` 作成）
+3. `config.toml` の `codex_hooks = true` 行を削除。**ただし pruning 後に `hooks.json` に他の hook が残っている場合は触らない**（共存する他プラグインを巻き込まないため）
+4. `AGENTS.md` の品質ゲート規約ブロックは**手動削除**（ユーザーが他ルールを追記している可能性があるため意図的）
+
+### 残骸が気になる場合の手動手順
 
 ```powershell
-Remove-Item $env:USERPROFILE\.codex\hooks.json -Force
-# config.toml から `codex_hooks = true` 行を手動削除
+# ~/.codex/AGENTS.md を開いて <!-- ja-output-harness --> で囲まれた範囲を削除
+# 他に jp-harness を参照する残り物を確認
+Select-String -Path $env:USERPROFILE\.codex\*.* -Pattern 'ja-output-harness' -AllMatches
 ```
 
-v0.3 で uninstall スクリプトに hooks クリーンアップを追加する予定（[backlog]）。
+```bash
+grep -rl 'ja-output-harness' "$HOME/.codex" 2>/dev/null
+```
 
 ## 参考
 

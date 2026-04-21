@@ -148,7 +148,7 @@ pwsh scripts\install.ps1 -AppendAgentsRule -EnableHooks
         └── SKILL.md
 ```
 
-どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。`scripts/uninstall.ps1` / `scripts/uninstall.sh` で `config.toml` から `[mcp_servers.jp_lint]` セクションを削除できます（`AGENTS.md` は手動削除）。
+どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。`scripts/uninstall.ps1` / `scripts/uninstall.sh` は `[mcp_servers.jp_lint]` と `hooks.json` の ja-output-harness 関連エントリを自動削除し、共存する他の hook が無くなった場合にのみ `codex_hooks = true` も外します。`AGENTS.md` は他ルールが混在する可能性があるため手動削除のままです（詳細は [`docs/HOOKS.md`](docs/HOOKS.md#アンインストール)）。
 
 ### クローン後のリポジトリ構造
 

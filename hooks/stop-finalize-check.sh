@@ -61,11 +61,11 @@ def main():
             content = f.read()
     except Exception:
         return 0
-    # Match the MCP tool call exactly, not the bare word. The prior
-    # substring check misfired whenever the user or assistant merely
-    # mentioned the word "finalize" in prose or a quoted reply
-    # (gpt-5.4 review #54).
-    if re.search(r"mcp__jp_lint__finalize|\"name\"\s*:\s*\"finalize\"", content):
+    # Require the jp_lint-scoped tool name. A bare '"name":"finalize"'
+    # would also match tools on other MCP servers that happen to expose
+    # something literally called "finalize" (gpt-5.4 follow-up review
+    # MINOR).
+    if "mcp__jp_lint__finalize" in content:
         return 0
     codex_home = os.environ.get("CODEX_HOME") or str(pathlib.Path.home() / ".codex")
     state_dir = pathlib.Path(codex_home) / "state"
