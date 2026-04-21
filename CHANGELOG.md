@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-04-21
+
+gpt-5.4 code review の NIT 3 件をまとめて掃除 (#56, #57, #58)。挙動変更は軽微な 1 件のみ（summary 文言）。
+
+### Fixed
+- **`_summarize([])` の vestigial な空括弧** (#56): `0件の違反を検出 ()` → `0件の違反を検出`。違反ゼロ時のサマリが自然な日本語になる。
+- **`stats._format_row()` 未使用関数** (#57): どこからも呼ばれていなかった残骸を削除。
+- **`discover.DEFAULT_ALLOWLIST` の `ssh` 重複** (#58): unix/shell tool グループから 2 件目の `ssh` を削除し、process/tools グループに一本化。
+
+### Notes
+- pytest 170 件 全通過（既存テスト `TestSummarize.test_empty` は新文言に更新）、ruff clean
+
 ## [0.3.5] - 2026-04-21
 
 gpt-5.4 code review の MINOR 5 件をまとめて解消 (#51, #52, #53, #54, #55)。並行耐性・ホットパス性能・env 移行経路の整備。

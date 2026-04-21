@@ -62,10 +62,6 @@ def _percentiles(values: list[float], ps: Iterable[float]) -> dict[str, float]:
     return out
 
 
-def _format_row(label: str, *cols: str, width: int = 16) -> str:
-    return label.ljust(24) + "".join(c.rjust(width) for c in cols)
-
-
 def cmd_path(args: argparse.Namespace) -> int:
     print(str(metrics_path()))
     return 0

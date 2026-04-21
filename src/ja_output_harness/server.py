@@ -59,6 +59,8 @@ def _load_rules_cached(bundled: Path, user: Path) -> RuleConfig:
 
 def _summarize(violations: list[Violation]) -> str:
     """Build a human-readable summary string with severity counts."""
+    if not violations:
+        return "0件の違反を検出"
     counts = Counter(v.severity or "ERROR" for v in violations)
     parts = [f"{counts[s]} {s}" for s in ("ERROR", "WARNING", "INFO") if counts[s]]
     return f"{len(violations)}件の違反を検出 ({', '.join(parts)})"
