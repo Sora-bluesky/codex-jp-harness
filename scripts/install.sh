@@ -56,12 +56,36 @@ START_HOOK_PATH="$REPO_ROOT/hooks/session-start-reeducate.sh"
 STATE_DIR="$CODEX_DIR/state"
 MODE_MARKER="$STATE_DIR/jp-harness-mode"
 
-# Mode resolution: explicit flag > marker file > "lite" (new install default).
+# Mode resolution: explicit flag > marker file > auto-detect.
+#
+# Auto-detect avoids the surprise where fresh installs default to "lite"
+# but the user only runs Codex App, where lite mode cannot be enabled
+# (Codex 0.122's SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT allowlist
+#  excludes codex_hooks; see codex-rs/app-server/src/config_api.rs:45).
+# Picking strict for App-only environments keeps v0.3.x-equivalent quality
+# gating instead of silently installing a no-op lite mode.
+detect_recommended_mode() {
+  if command -v codex >/dev/null 2>&1; then
+    if codex features list >/dev/null 2>&1; then
+      echo "lite"
+      return 0
+    fi
+  fi
+  echo "strict"
+}
+
 if [[ -z "$MODE" && -f "$MODE_MARKER" ]]; then
+  # Upgrade / reinstall: preserve the user's prior explicit choice.
   MODE="$(tr -d '[:space:]' < "$MODE_MARKER")"
 fi
 if [[ -z "$MODE" ]]; then
-  MODE="lite"
+  MODE="$(detect_recommended_mode)"
+  echo "[ja-output-harness] Auto-detected recommended mode: $MODE"
+  if [[ "$MODE" == "strict" ]]; then
+    echo "[ja-output-harness]   Reason: Codex CLI not detected (or \`codex features list\` failed)." >&2
+    echo "[ja-output-harness]   Codex App alone cannot enable lite mode — upstream feature allowlist limitation." >&2
+    echo "[ja-output-harness]   Override with --mode=lite to install the lite hook anyway (useful if you also use Codex CLI)." >&2
+  fi
 fi
 case "$MODE" in
   lite|strict-lite|strict) ;;

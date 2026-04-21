@@ -46,9 +46,27 @@ $startHookPath = Join-Path $repoRoot "hooks\session-start-reeducate.ps1"
 $stateDir      = Join-Path $codexDir "state"
 $modeMarker    = Join-Path $stateDir "jp-harness-mode"
 
-# Mode resolution: explicit flag > marker file > "lite" (new install default).
+# Mode resolution: explicit flag > marker file > auto-detect.
+#
+# Auto-detect avoids the surprise where fresh installs default to "lite"
+# but the user only runs Codex App, where lite mode cannot be enabled
+# (Codex 0.122's SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT allowlist
+#  excludes `codex_hooks`; see codex-rs/app-server/src/config_api.rs:45).
+# Picking strict for App-only environments keeps v0.3.x-equivalent quality
+# gating instead of silently installing a no-op lite mode.
+function Get-AutoDetectedMode {
+    try {
+        & codex features list *> $null
+        if ($LASTEXITCODE -eq 0) {
+            return 'lite'
+        }
+    } catch {}
+    return 'strict'
+}
+
 if ([string]::IsNullOrWhiteSpace($Mode)) {
     if (Test-Path $modeMarker) {
+        # Upgrade / reinstall: preserve the user's prior explicit choice.
         try {
             $Mode = (Get-Content -Path $modeMarker -Raw -Encoding utf8).Trim()
         } catch {
@@ -56,7 +74,13 @@ if ([string]::IsNullOrWhiteSpace($Mode)) {
         }
     }
     if ([string]::IsNullOrWhiteSpace($Mode)) {
-        $Mode = "lite"
+        $Mode = Get-AutoDetectedMode
+        Write-Host "[ja-output-harness] Auto-detected recommended mode: $Mode" -ForegroundColor Cyan
+        if ($Mode -eq 'strict') {
+            Write-Host "[ja-output-harness]   Reason: Codex CLI not detected (or `codex features list` failed)." -ForegroundColor Yellow
+            Write-Host "[ja-output-harness]   Codex App alone cannot enable lite mode — upstream feature allowlist limitation." -ForegroundColor Yellow
+            Write-Host "[ja-output-harness]   Override with -Mode lite to install the lite hook anyway (useful if you also use Codex CLI)." -ForegroundColor Yellow
+        }
     }
 }
 if ($Mode -notin @("lite", "strict-lite", "strict")) {
