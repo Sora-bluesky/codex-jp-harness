@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.21] - 2026-04-21
+
+v0.2.20 配布後の実運用で `codex-jp-tune discover` を試したところ、標準技術語（`stdin` / `stdout` / `stderr` / `pester` / `commit` / `push` / `grep` 等）が候補として上がり、判断ノイズを生んでいた。これらはバンドル allowlist に追加しておけば事前除外できる。
+
+### Changed
+- **`discover.DEFAULT_ALLOWLIST` を拡張**（追加 25 語）:
+  - **標準 I/O ストリーム**: `stdin`, `stdout`, `stderr`
+  - **git 動詞 / 名詞**: `commit`, `push`, `pull`, `branch`, `tag`, `clone`, `fork`, `diff`, `blame`, `stash`
+  - **テストフレームワーク固有名詞**: `pester`, `pytest`, `jest`, `mocha`, `vitest`, `rspec`, `cargo`, `rustc`
+  - **unix / shell ツール名**: `grep`, `awk`, `sed`, `curl`, `wget`, `jq`, `ssh`, `scp`, `rsync`
+- これらは日本語に置き換える必要がない（置換候補がない / 固有名詞）ため、discover の signal-to-noise 比を改善。
+
+### Notes
+- pytest 134 件（+4 新規 allowlist テスト）全通過。ruff clean。
+- 既存利用者は `git pull && uv sync` で反映。
+- `merge` / `rebase` は既に `banned_terms.yaml` に INFO severity で登録済みのため allowlist には追加していない（重複を避ける）。
+
 ## [0.2.20] - 2026-04-21
 
 v0.2.19 の 8 ステップ walkthrough を実運用で試したところ、スキルが Step 3 の意図メニューを省略して Step 3（判断支援）へ直行する現象を dogfooding で確認した。原因はスキルが「opening メッセージに特定語があれば意図 1/2 と判定」という自然な推論を行うため、discover したかった利用者が意図 6 を選べなかったこと。スキルと README の両方を実態に合わせる。

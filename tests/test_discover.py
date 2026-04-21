@@ -110,6 +110,22 @@ class TestDefaultAllowlist:
         for t in ("api", "http", "json", "ci", "pr", "mcp", "url", "sdk"):
             assert t in DEFAULT_ALLOWLIST
 
+    def test_includes_stdio_streams(self):
+        for t in ("stdin", "stdout", "stderr"):
+            assert t in DEFAULT_ALLOWLIST
+
+    def test_includes_git_verbs(self):
+        for t in ("commit", "push", "pull", "branch", "clone"):
+            assert t in DEFAULT_ALLOWLIST
+
+    def test_includes_test_frameworks(self):
+        for t in ("pester", "pytest", "jest"):
+            assert t in DEFAULT_ALLOWLIST
+
+    def test_includes_unix_tools(self):
+        for t in ("grep", "awk", "sed", "curl"):
+            assert t in DEFAULT_ALLOWLIST
+
     def test_no_empty_or_short(self):
         for t in DEFAULT_ALLOWLIST:
             assert len(t) >= 2
