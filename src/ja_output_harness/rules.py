@@ -14,6 +14,10 @@ from typing import Any
 import yaml
 
 
+_SNIPPET_MAX_CHARS = 50
+_PAYLOAD_EXCLUDE_FIELDS = frozenset({"fix", "category"})
+
+
 @dataclass
 class Violation:
     """A single rule violation found in the draft."""
@@ -31,8 +35,22 @@ class Violation:
     category: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Slim payload shipped back to the LLM (v0.4.0+).
+
+        ``fix`` duplicates the per-rule remediation text documented in
+        ``config/agents_rule.md``; dropping it saves ~25 B per violation.
+        ``category`` is unused by Codex and carries only 5-15 B of
+        bookkeeping. ``snippet`` is capped at 50 chars — enough to confirm
+        location without echoing the full line.
+        """
         d = asdict(self)
-        return {k: v for k, v in d.items() if v not in ("", 0)}
+        if d.get("snippet"):
+            d["snippet"] = d["snippet"][:_SNIPPET_MAX_CHARS]
+        return {
+            k: v
+            for k, v in d.items()
+            if k not in _PAYLOAD_EXCLUDE_FIELDS and v not in ("", 0)
+        }
 
 
 @dataclass
