@@ -1,7 +1,12 @@
 """Tests for ja_output_harness.server."""
 
 from ja_output_harness.rules import Violation
-from ja_output_harness.server import _fast_path_applicable, _summarize, finalize
+from ja_output_harness.server import (
+    _fast_path_applicable,
+    _load_rules_cached,
+    _summarize,
+    finalize,
+)
 
 
 class TestSummarize:
@@ -140,3 +145,33 @@ class TestFastPathGate:
         # An ERROR with a rule type we don't know how to auto-fix blocks fast path.
         vs = [Violation(rule="mystery_rule", line=1, severity="ERROR")]
         assert _fast_path_applicable(vs) is False
+
+
+class TestLoadRulesCache:
+    """gpt-5.4 review #55: cache rule yaml by (path, mtime)."""
+
+    def test_same_mtime_hits_cache(self, tmp_path):
+        bundled = tmp_path / "bundled.yaml"
+        bundled.write_text("banned:\n  - {term: slice, severity: ERROR}\n", encoding="utf-8")
+        user = tmp_path / "user.yaml"
+        cfg1 = _load_rules_cached(bundled, user)
+        cfg2 = _load_rules_cached(bundled, user)
+        assert cfg1 is cfg2  # identity implies cache hit, no re-parse
+
+    def test_mtime_change_invalidates_cache(self, tmp_path):
+        import os
+        import time
+        bundled = tmp_path / "bundled.yaml"
+        bundled.write_text("banned:\n  - {term: foo, severity: ERROR}\n", encoding="utf-8")
+        user = tmp_path / "user.yaml"
+        cfg1 = _load_rules_cached(bundled, user)
+        assert any(e.get("term") == "foo" for e in cfg1.banned)
+
+        # Rewrite with a different term and bump mtime forward so the cache
+        # key changes regardless of filesystem timestamp resolution.
+        bundled.write_text("banned:\n  - {term: bar, severity: ERROR}\n", encoding="utf-8")
+        future = time.time() + 2
+        os.utime(bundled, (future, future))
+        cfg2 = _load_rules_cached(bundled, user)
+        assert any(e.get("term") == "bar" for e in cfg2.banned)
+        assert cfg1 is not cfg2

@@ -64,7 +64,11 @@ try {
     } catch {
         exit 0
     }
-    if ($transcript -match 'finalize') { exit 0 }
+    # Match the MCP tool call name exactly (both fully-qualified and bare
+    # forms). The previous substring match on 'finalize' fired on user
+    # quotes / replies that merely contained the word, masking real
+    # forgot-finalize cases (gpt-5.4 review #54).
+    if ($transcript -match 'mcp__jp_lint__finalize|"name"\s*:\s*"finalize"') { exit 0 }
 
     $codexHome = $env:CODEX_HOME
     if ([string]::IsNullOrWhiteSpace($codexHome)) {

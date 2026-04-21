@@ -196,6 +196,31 @@ class TestOverrideOrder:
         assert entry["severity"] == "INFO"
 
 
+class TestUserConfigPathResolution:
+    """gpt-5.4 review #52: env vars are absolutized; new name takes priority."""
+
+    def test_new_env_var_preferred(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("JA_OUTPUT_HARNESS_USER_CONFIG", str(tmp_path / "new.yaml"))
+        monkeypatch.setenv("CODEX_JP_HARNESS_USER_CONFIG", str(tmp_path / "old.yaml"))
+        from ja_output_harness.rules import resolve_user_config_path
+        assert resolve_user_config_path() == (tmp_path / "new.yaml").resolve()
+
+    def test_legacy_env_var_still_accepted(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("JA_OUTPUT_HARNESS_USER_CONFIG", raising=False)
+        monkeypatch.setenv("CODEX_JP_HARNESS_USER_CONFIG", str(tmp_path / "legacy.yaml"))
+        from ja_output_harness.rules import resolve_user_config_path
+        assert resolve_user_config_path() == (tmp_path / "legacy.yaml").resolve()
+
+    def test_relative_path_absolutized(self, tmp_path: Path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("JA_OUTPUT_HARNESS_USER_CONFIG", raising=False)
+        monkeypatch.setenv("CODEX_JP_HARNESS_USER_CONFIG", "relative.yaml")
+        from ja_output_harness.rules import resolve_user_config_path
+        result = resolve_user_config_path()
+        assert result.is_absolute()
+        assert result == (tmp_path / "relative.yaml").resolve()
+
+
 class TestDiscoverFileEncoding:
     """gpt-5.4 review #46: discover --file must survive non-UTF-8 bytes."""
 

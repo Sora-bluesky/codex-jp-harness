@@ -244,3 +244,34 @@ def test_cmd_show_empty_file(
     err = capsys.readouterr().err
     assert rc == 1
     assert "No metrics" in err
+
+
+def test_concurrent_record_preserves_all_entries(tmp_path: Path) -> None:
+    """gpt-5.4 review #51: lock prevents append/rotate races from dropping records."""
+    import threading
+
+    target = tmp_path / "concurrent.jsonl"
+    N = 32
+
+    def writer(i: int) -> None:
+        metrics.record(
+            draft=f"draft-{i}",
+            violations_count=0,
+            severity_counts={"ERROR": 0, "WARNING": 0, "INFO": 0},
+            response={"ok": True},
+            elapsed_ms=float(i),
+            path=target,
+        )
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(N)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    lines = target.read_text(encoding="utf-8").splitlines()
+    drafts = {json.loads(line)["draft_chars"] for line in lines}
+    # Every record carries a unique draft-<i> so draft_chars = len(f"draft-{i}").
+    # All writes must survive (no truncated / clobbered lines).
+    assert len(lines) == N
+    assert len(drafts) >= 2  # at least "draft-0".."draft-9" differ in length

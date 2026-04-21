@@ -47,20 +47,27 @@ class RuleConfig:
 
 
 def resolve_user_config_path() -> Path:
-    """Return the user-local override path (may not exist).
+    """Return the user-local override path (may not exist), always absolute.
 
     Priority:
-      1. $CODEX_JP_HARNESS_USER_CONFIG (absolute path)
-      2. $XDG_CONFIG_HOME/ja-output-harness/jp_lint.yaml
-      3. ~/.codex/jp_lint.yaml
+      1. ``$JA_OUTPUT_HARNESS_USER_CONFIG`` (new, preferred)
+      2. ``$CODEX_JP_HARNESS_USER_CONFIG`` (legacy pre-v0.3.0 — will be
+         removed in v0.4.0)
+      3. ``$XDG_CONFIG_HOME/ja-output-harness/jp_lint.yaml``
+      4. ``~/.codex/jp_lint.yaml``
+
+    Relative paths from the env variables are resolved against CWD at call
+    time via :meth:`Path.resolve`, so downstream code never sees a path that
+    depends on whoever chdirs next (gpt-5.4 review #52).
     """
-    env = os.environ.get("CODEX_JP_HARNESS_USER_CONFIG")
-    if env:
-        return Path(env).expanduser()
+    for name in ("JA_OUTPUT_HARNESS_USER_CONFIG", "CODEX_JP_HARNESS_USER_CONFIG"):
+        env = os.environ.get(name)
+        if env:
+            return Path(env).expanduser().resolve()
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
-        return Path(xdg).expanduser() / "ja-output-harness" / "jp_lint.yaml"
-    return Path.home() / ".codex" / "jp_lint.yaml"
+        return (Path(xdg).expanduser() / "ja-output-harness" / "jp_lint.yaml").resolve()
+    return (Path.home() / ".codex" / "jp_lint.yaml").resolve()
 
 
 def _apply_user_overrides(raw: dict[str, Any], user_raw: dict[str, Any]) -> dict[str, Any]:

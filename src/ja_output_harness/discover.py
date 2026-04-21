@@ -212,9 +212,22 @@ def scan_text(
     existing_ci = {t.lower() for t in (existing_terms or set())}
     allow_ci = {t.lower() for t in (allowlist or DEFAULT_ALLOWLIST)}
 
+    # Multi-word banned terms (e.g. "contract drift") would otherwise be
+    # split into individual tokens by the tokenizer and resurface here as
+    # noise. Mask them out before tokenizing so they're filtered out at
+    # the phrase level (gpt-5.4 review #53).
+    multi_word_existing = [t for t in (existing_terms or set()) if " " in t]
+
     # Strip fenced code blocks entirely; mask inline backticks and markdown
     # link URLs on each line so tokens inside them don't leak into results.
     scrubbed = _strip_code_blocks(text)
+    if multi_word_existing:
+        for phrase in multi_word_existing:
+            scrubbed = re.sub(
+                r"(?i)\b" + re.escape(phrase) + r"\b",
+                " " * len(phrase),
+                scrubbed,
+            )
     lines = scrubbed.split("\n")
 
     counts: dict[str, int] = {}

@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ja_output_harness import metrics
 from ja_output_harness.rules import (
+    RuleConfig,
     Violation,
     apply_auto_fix,
     apply_backtick_fix,
@@ -29,6 +30,31 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 RULES_PATH = REPO_ROOT / "config" / "banned_terms.yaml"
 
 mcp = FastMCP("jp_lint")
+
+
+# `finalize` is the hot path — Codex calls it at least once per assistant
+# turn, sometimes multiple times. YAML parsing for the bundled + user rules
+# dominates per-call I/O. Cache by (path, mtime) so we re-parse only when
+# the rule files actually change (gpt-5.4 review #55).
+_RULES_CACHE: dict[str, Any] = {"key": None, "cfg": None}
+
+
+def _load_rules_cached(bundled: Path, user: Path) -> RuleConfig:
+    try:
+        bundled_mtime = bundled.stat().st_mtime_ns
+    except OSError:
+        bundled_mtime = None
+    try:
+        user_mtime = user.stat().st_mtime_ns if user.exists() else None
+    except OSError:
+        user_mtime = None
+    key = (str(bundled), bundled_mtime, str(user), user_mtime)
+    if _RULES_CACHE["key"] == key and _RULES_CACHE["cfg"] is not None:
+        return _RULES_CACHE["cfg"]
+    cfg = load_rules(bundled, user)
+    _RULES_CACHE["key"] = key
+    _RULES_CACHE["cfg"] = cfg
+    return cfg
 
 
 def _summarize(violations: list[Violation]) -> str:
@@ -54,7 +80,7 @@ def finalize(draft: str) -> dict[str, Any]:
         不合格: ``{"ok": False, "violations": [...], "summary": "..."}``
     """
     started = time.perf_counter()
-    cfg = load_rules(RULES_PATH, resolve_user_config_path())
+    cfg = _load_rules_cached(RULES_PATH, resolve_user_config_path())
     violations = lint(draft, cfg)
     error_violations = [v for v in violations if (v.severity or "ERROR") == "ERROR"]
     severity_counts = Counter(v.severity or "ERROR" for v in violations)

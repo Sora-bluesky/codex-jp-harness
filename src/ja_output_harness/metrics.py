@@ -15,6 +15,8 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,52 @@ def _maybe_rotate(target: Path, max_bytes: int) -> None:
         return
 
 
+_ROTATE_LOCK_TIMEOUT = 1.0  # seconds — metrics is best-effort; never block the tool.
+
+
+@contextmanager
+def _rotate_lock(target: Path, timeout: float = _ROTATE_LOCK_TIMEOUT):
+    """Best-effort cross-platform lock around rotate+append.
+
+    Without this, two concurrent ``finalize`` calls can race on
+    ``_maybe_rotate`` and either duplicate the archive copy or lose the
+    incoming record. The lock is advisory (``O_CREAT|O_EXCL`` sentinel file)
+    and its timeout is short: metrics are diagnostic data, so if we cannot
+    acquire the lock we silently skip rather than delay the user's
+    ``finalize`` call (gpt-5.4 review #51).
+    """
+    lock_path = target.with_suffix(target.suffix + ".lock")
+    deadline = time.monotonic() + timeout
+    acquired = False
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            acquired = True
+            break
+        except (FileExistsError, PermissionError):
+            if time.monotonic() > deadline:
+                # Stale lock (crashed writer)? Reclaim if older than timeout.
+                try:
+                    if lock_path.exists():
+                        age = time.time() - lock_path.stat().st_mtime
+                        if age > timeout:
+                            lock_path.unlink()
+                            continue
+                except OSError:
+                    pass
+                break  # give up silently; metrics are advisory
+            time.sleep(0.005)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+
+
 def record(
     *,
     draft: str,
@@ -80,7 +128,6 @@ def record(
     try:
         target = path if path is not None else metrics_path()
         target.parent.mkdir(parents=True, exist_ok=True)
-        _maybe_rotate(target, max_bytes)
         draft_bytes = len(draft.encode("utf-8"))
         response_bytes = len(json.dumps(response, ensure_ascii=False).encode("utf-8"))
         entry = {
@@ -102,8 +149,16 @@ def record(
             "ok": bool(response.get("ok", False)),
             "fixed": bool(fixed),
         }
-        with target.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        with _rotate_lock(target):
+            # Both rotate and append happen inside the critical section so
+            # no other writer can slip in between the archive rename and the
+            # fresh-file append. If the lock was not acquired we still write
+            # best-effort — better to risk a rare duplicate on the rotate
+            # boundary than to drop the record entirely.
+            _maybe_rotate(target, max_bytes)
+            with target.open("a", encoding="utf-8") as f:
+                f.write(line)
     except Exception:
         # Never let a metrics write failure break the tool call.
         return
