@@ -40,6 +40,17 @@ def metrics_path() -> Path:
     return _codex_home() / "state" / "jp-harness-metrics.jsonl"
 
 
+def lite_metrics_path() -> Path:
+    """Return the path to the lite-mode Stop hook jsonl file.
+
+    Written by ``hooks/stop-finalize-check.{ps1,sh}`` in lite / strict-lite
+    modes. Unlike ``metrics_path()`` this file is not rotated yet (see
+    v0.4.1 follow-up: share ``_rotate_lock`` into a helper module so the
+    hook can reuse it).
+    """
+    return _codex_home() / "state" / "jp-harness-lite.jsonl"
+
+
 def archive_path(active: Path) -> Path:
     """Return the 1-generation archive path for the given active file."""
     return active.with_name(active.stem + ".1" + active.suffix)
