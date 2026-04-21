@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.22] - 2026-04-21
+
+v0.2.21 配布後の実測で output-factor が 3.58× に悪化（retry/turn = 1.58）。n=123 のうち 5+ call の長い尾が 15% に増え、16 call 級のケースも発生。原因は `bare_identifier` 違反（ファイルパス・タスク ID・identifier のバッククォート忘れ）が LLM rewrite に丸投げされ、多段 retry を誘発していたこと。fast-path が対応していたのは `banned_term` のみだったため、`bare_identifier` は slow path で消化されていた。
+
+### Added
+- **`rules.apply_backtick_fix(draft, cfg)`**: すべての裸識別子を自動でバッククォート化する純関数。既存のバッククォート span / markdown link URL / fenced code block は保持する。バッククォート化した識別子は `_mask_inline_code` でマスクされるため、副次的に `too_many_identifiers` と `sentence_too_long`（識別子あり branch）も解消される。
+
+### Changed
+- **`server._fast_path_applicable`** を拡張。`banned_term`（置換語あり）に加えて **`bare_identifier` / `too_many_identifiers` / `sentence_too_long`** も fast-path 対象と判定するよう変更。再 lint で ERROR が残れば slow path に fallback するため安全。
+- **`server.finalize()`** を `_apply_fast_path_fixes` ヘルパーに委譲。banned_term 置換 → bare_identifier バッククォート化 → 再 lint → ERROR ゼロなら `fixed:true` 返却、の流れを一本化。
+- **`config/agents_rule.md`** の fast path 節を「禁止語 → 推奨語の置換、および裸の識別子のバッククォート化」と両方カバーする文言に更新。
+
+### Notes
+- pytest 144 件（+10）全通過。ruff clean。
+- 期待される効果: `bare_identifier` を伴う ERROR ケースが fast-path 発火率に加算される見込み（実測 42% の slow path のうち多くが該当）。output-factor は 3.58× → 2.3〜2.8× への改善を想定。実運用 30 ターン蓄積後に `codex-jp-stats overhead` で検証。
+- 反映手順: `git pull && uv sync` → Codex（CLI / App）再起動。`~/.codex/AGENTS.md` の規約ブロックを更新するには、旧ブロックを手動削除してから `pwsh scripts\install.ps1 -AppendAgentsRule` を再実行。
+
 ## [0.2.21] - 2026-04-21
 
 v0.2.20 配布後の実運用で `codex-jp-tune discover` を試したところ、標準技術語（`stdin` / `stdout` / `stderr` / `pester` / `commit` / `push` / `grep` 等）が候補として上がり、判断ノイズを生んでいた。これらはバンドル allowlist に追加しておけば事前除外できる。

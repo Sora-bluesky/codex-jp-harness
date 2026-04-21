@@ -18,6 +18,7 @@ from codex_jp_harness import metrics
 from codex_jp_harness.rules import (
     Violation,
     apply_auto_fix,
+    apply_backtick_fix,
     extract_replacement,
     lint,
     load_rules,
@@ -58,29 +59,29 @@ def finalize(draft: str) -> dict[str, Any]:
     error_violations = [v for v in violations if (v.severity or "ERROR") == "ERROR"]
     severity_counts = Counter(v.severity or "ERROR" for v in violations)
     fixed = False
+    response: dict[str, Any]
 
     if error_violations and _fast_path_applicable(error_violations):
-        rewritten = apply_auto_fix(draft, error_violations)
-        new_violations = lint(rewritten, cfg)
-        new_errors = [v for v in new_violations if (v.severity or "ERROR") == "ERROR"]
-        if not new_errors:
-            # Auto-fix cleared all ERROR violations — skip the LLM rewrite loop.
-            fix_parts = [
-                f"{v.term} → {extract_replacement(v.suggest)}" for v in error_violations
-            ]
-            response: dict[str, Any] = {
-                "ok": True,
-                "fixed": True,
-                "rewritten": rewritten,
-                "summary": f"{len(error_violations)}件を自動修正 ({', '.join(fix_parts)})",
-            }
-            if new_violations:
-                response["advisories"] = [v.to_dict() for v in new_violations]
-            fixed = True
-            violations = new_violations
-            severity_counts = Counter(v.severity or "ERROR" for v in violations)
+        rewritten, fix_summary = _apply_fast_path_fixes(draft, cfg, error_violations)
+        if rewritten != draft:
+            new_violations = lint(rewritten, cfg)
+            new_errors = [v for v in new_violations if (v.severity or "ERROR") == "ERROR"]
+            if not new_errors:
+                response = {
+                    "ok": True,
+                    "fixed": True,
+                    "rewritten": rewritten,
+                    "summary": fix_summary,
+                }
+                if new_violations:
+                    response["advisories"] = [v.to_dict() for v in new_violations]
+                fixed = True
+                violations = new_violations
+                severity_counts = Counter(v.severity or "ERROR" for v in violations)
+            else:
+                # Auto-fix left residual ERRORs — fall back to the regular loop.
+                response = _build_standard_response(violations, error_violations)
         else:
-            # Auto-fix introduced new errors — fall through to the regular loop.
             response = _build_standard_response(violations, error_violations)
     elif not error_violations:
         if not violations:
@@ -106,16 +107,58 @@ def finalize(draft: str) -> dict[str, Any]:
     return response
 
 
+_AUTO_FIX_RULES = frozenset({"banned_term", "bare_identifier", "too_many_identifiers",
+                             "sentence_too_long"})
+
+
 def _fast_path_applicable(error_violations: list[Violation]) -> bool:
-    """The fast path runs when every ERROR is a banned_term that has a usable replacement."""
+    """Return True when every ERROR has a deterministic server-side fix candidate.
+
+    - ``banned_term`` is fixable when the suggest yields a replacement.
+    - ``bare_identifier`` is always fixable by wrapping in backticks.
+    - ``too_many_identifiers`` / ``sentence_too_long`` often clear as a side
+      effect of backticking bare identifiers, so we still try the fast path
+      and re-lint decides whether the fix stuck.
+    """
     if not error_violations:
         return False
     for v in error_violations:
-        if v.rule != "banned_term":
-            return False
-        if not extract_replacement(v.suggest):
-            return False
+        if v.rule == "banned_term":
+            if not extract_replacement(v.suggest):
+                return False
+            continue
+        if v.rule in _AUTO_FIX_RULES:
+            continue
+        return False
     return True
+
+
+def _apply_fast_path_fixes(
+    draft: str, cfg: Any, error_violations: list[Violation]
+) -> tuple[str, str]:
+    """Apply banned-term substitutions and bare-identifier wrapping.
+
+    Returns ``(rewritten, summary)``. ``summary`` is the human-readable
+    description placed on the fast-path response.
+    """
+    banned = [
+        v for v in error_violations
+        if v.rule == "banned_term" and extract_replacement(v.suggest)
+    ]
+    bare = [v for v in error_violations if v.rule == "bare_identifier"]
+
+    rewritten = draft
+    parts: list[str] = []
+    if banned:
+        rewritten = apply_auto_fix(rewritten, banned)
+        parts.extend(f"{v.term} → {extract_replacement(v.suggest)}" for v in banned)
+    if bare:
+        rewritten = apply_backtick_fix(rewritten, cfg)
+        parts.append(f"識別子 {len(bare)} 件をバッククォート化")
+
+    fix_count = len(banned) + (1 if bare else 0)
+    summary = f"{fix_count}件を自動修正 ({', '.join(parts)})" if parts else "変更なし"
+    return rewritten, summary
 
 
 def _build_standard_response(
