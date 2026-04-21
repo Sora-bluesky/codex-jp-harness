@@ -26,7 +26,7 @@ https://github.com/Sora-bluesky/ja-output-harness
    - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
    - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
    （config.toml への MCP 登録と、AGENTS.md への品質ゲート規約追記を一括で行う）
-4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
+4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼ぶ。v0.3.x の fast path で `slice` は自動置換されるため `ok:true, fixed:true, rewritten:"..."` が返る。`fixed` フィールドが付いていれば MCP 登録・rules 読込み・auto-fix の動線が正常
 5. 完了したら、Codex（CLI / App）の再起動が必要であることを私に伝える
 
 各手順の結果を簡潔に報告しながら進めてよい。
@@ -85,12 +85,13 @@ Codex セッションを開き、以下を入力:
 今のタスクの進捗報告を書いて。テストとして slice という語をどこかに入れて。
 ```
 
-期待される動作:
+期待される動作（v0.3.x の fast path 経路）:
 1. Codex が下書きに `slice` を含める
 2. 内部で `mcp__jp_lint__finalize` を呼ぶ
-3. `ok: false` が返り、`slice` 違反が指摘される
-4. Codex が書き直して `限定的な変更` 等に置換
-5. `ok: true` が返り、クリーン版がユーザーに表示される
+3. サーバーが `slice → 限定的な変更` に自動置換し、`{"ok": true, "fixed": true, "rewritten": "...", "summary": "..."}` を返す
+4. Codex は `rewritten` をそのままユーザーに返す（rewrite retry を省略）
+
+旧挙動（v0.2.16 以前 / fast path 対象外のケース）では `ok: false` が返り、Codex が書き直して再呼び出しする loop になる。現在もこの slow path は残っているが、ほとんどのケースで fast path が先に当たる。
 
 ## トラブルシューティング
 

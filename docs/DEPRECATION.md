@@ -27,12 +27,14 @@
 pwsh scripts\uninstall.ps1
 ```
 
-`uninstall.ps1` は以下を自動実行:
-- `~/.codex/config.toml` から `[mcp_servers.jp_lint]` を削除
-- `~/.codex/config.toml` から `hooks = "..."` 行と `[features] codex_hooks = true` を削除
-- `~/.codex/AGENTS.md` から品質ゲート規約ブロックを削除
+`uninstall.ps1` / `uninstall.sh` は以下を自動実行:
+- `~/.codex/config.toml` から `[mcp_servers.jp_lint]` ブロックを削除
+- 削除前に `~/.codex/config.toml.bak` にバックアップを保存
 
-`AGENTS.md` の編集は確認ダイアログを出す（手動で他のルールが追加されている可能性があるため）。
+以下は **現在は手動**（実装は GitHub Issue #50 で追跡中）:
+- `~/.codex/hooks.json` の Stop / SessionStart 登録解除
+- `~/.codex/config.toml` の `[features] codex_hooks = true` 解除
+- `~/.codex/AGENTS.md` の品質ゲート規約ブロック削除（ユーザーが他ルールを追記している可能性があるため、最終削除は目視で行う）
 
 ### 2. リポジトリのアーカイブ
 
