@@ -135,6 +135,41 @@ def test_ab_report_metrics_source_reads_archive(
     assert "0.0%" in out  # test 0/1 ok
 
 
+def test_ab_report_lite_source_reads_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """v0.4.2: lite source must also read archive + active.
+
+    record_lite() now rotates jp-harness-lite.jsonl at the same 20 MB
+    boundary as metrics. Reading only the active file would silently
+    drop pre-rotation history once the file rolls over (gpt-5.4 review
+    v0.4.2 MEDIUM #1).
+    """
+    active = tmp_path / "state" / "jp-harness-lite.jsonl"
+    active.parent.mkdir(parents=True, exist_ok=True)
+
+    archive = active.with_name("jp-harness-lite.1.jsonl")
+    archive.write_text(
+        json.dumps(_lite_entry("2026-04-14T10:00:00Z", ok=True)) + "\n",
+        encoding="utf-8",
+    )
+    active.write_text(
+        json.dumps(_lite_entry("2026-04-21T10:00:00Z", ok=False, rules={"banned_term": 1}))
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: active)
+
+    rc = stats.cmd_ab_report(
+        _ns(baseline="2026-04-14:2026-04-20", test="2026-04-21:2026-04-27", source="lite")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "source:  lite" in out
+    assert "100.0%" in out  # baseline came from archive
+    assert "0.0%" in out  # test came from active
+
+
 def test_ab_report_empty_ranges_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

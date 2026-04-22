@@ -300,16 +300,17 @@ def _summarize(entries: list[dict]) -> dict:
 def _source_entries(source: str) -> tuple[Path, Iterator[dict]]:
     """Resolve the jsonl path for ``source`` and yield its entries.
 
-    ``metrics`` reads archive + active so rotated history is preserved.
-    ``lite`` reads the active file only — the lite jsonl is not rotated
-    yet (v0.4.1 will share ``_rotate_lock``).
+    Both sources read archive + active so rotated history is preserved.
+    Lite jsonl gained rotation in v0.4.2 when ``record_lite`` started
+    sharing ``_rotate_lock`` with ``record``; reading only the active
+    file would silently drop entries past the 20 MB rollover.
     """
     if source == "metrics":
         path = metrics_path()
         return path, _read_entries(path)
     if source == "lite":
         path = lite_metrics_path()
-        return path, _iter_file(path)
+        return path, _read_entries(path)
     raise ValueError(f"Unknown source '{source}'. Expected 'lite' or 'metrics'.")
 
 

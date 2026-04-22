@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-04-22
+
+`jp-harness-lite.jsonl` への append を Stop hook（`Add-Content` / 直接 `open('a')`）から外し、`metrics.record_lite` 経由で `_rotate_lock` 保護下に集約。Windows で `O_APPEND` が atomic でない問題に対する予防策（gpt-5.4 review 2 ラウンドでクリア）。
+
+### Fixed
+- Stop hook の lite jsonl append が Windows で非アトミックになり得る race を、`metrics.record_lite` への集約で解消
+- `ja-output-stats --source lite` が rotated archive (`.1.jsonl`) を読まなかったのを修正
+- hook の rules_cli 引数を `--session=<value>` / `--mode=<value>` 形式に変更（`-` 始まりの session id 誤認防止）
+
+### Added
+- `metrics.record_lite()` — `_rotate_lock` + `_maybe_rotate` を再利用する lite jsonl 専用書き込み関数（lock 取得失敗時は drop、`record()` の best-effort と意図的に divergence）
+- `rules_cli --append-lite STATE_FILE --session ID --mode MODE` — hook が一度の呼び出しで lint と append を済ませるための optional フラグ群
+- 並行 append レーステスト（N=32）と CLI 統合テスト
+
 ## [0.4.1] - 2026-04-22
 
 v0.4.0 の実測 dogfood（n=21、ok 率 23.8%、Wilson 95% CI [10.6%, 45.1%]）を受け、default を `lite` から `strict-lite` に変更。README をエンドユーザー向けに簡素化し、開発者向け内容は `DEVELOPERS.md` へ分離。

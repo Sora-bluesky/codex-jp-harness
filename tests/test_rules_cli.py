@@ -92,3 +92,57 @@ def test_utf8_japanese_roundtrip(
     payload = json.loads(capsys.readouterr().out.strip())
     assert "src/foo.py" in payload["violations"][0]["token"]
     assert "識別子" in payload["violations"][0]["snippet"]
+
+
+def test_append_lite_persists_entry_through_record_lite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--append-lite must route the lint result through metrics.record_lite,
+    which holds the rotate+lock primitives so concurrent Stop hooks on
+    Windows cannot interleave entries (v0.4.2 follow-up to gpt-5.4 #51).
+    """
+    draft = tmp_path / "draft.txt"
+    draft.write_text("slice を更新した。", encoding="utf-8")
+    state_file = tmp_path / "jp-harness-lite.jsonl"
+    rc = rules_cli.main([
+        "--check", str(draft),
+        "--append-lite", str(state_file),
+        "--session", "sess-cli",
+        "--mode", "strict-lite",
+    ])
+    out = capsys.readouterr().out.strip()
+    payload = json.loads(out)
+    assert rc == 0
+    # stdout payload still drives the hook's block decision unchanged.
+    assert payload["ok"] is False
+    assert payload["rule_counts"] == {"banned_term": 1}
+    # And the entry was persisted on disk with the lite jsonl schema.
+    assert state_file.exists()
+    entries = state_file.read_text(encoding="utf-8").splitlines()
+    assert len(entries) == 1
+    entry = json.loads(entries[0])
+    assert entry["session"] == "sess-cli"
+    assert entry["mode"] == "strict-lite"
+    assert entry["ok"] is False
+    assert entry["violation_count"] == 1
+    assert entry["rule_counts"] == {"banned_term": 1}
+
+
+def test_append_lite_skipped_when_mode_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Defensive: callers must supply --mode; otherwise we never write the
+    jsonl entry (an empty mode would corrupt downstream ja-output-stats).
+    """
+    draft = tmp_path / "draft.txt"
+    draft.write_text("こんにちは。", encoding="utf-8")
+    state_file = tmp_path / "lite.jsonl"
+    rc = rules_cli.main([
+        "--check", str(draft),
+        "--append-lite", str(state_file),
+        "--session", "sess",
+        # --mode intentionally omitted
+    ])
+    capsys.readouterr()  # drain stdout
+    assert rc == 0
+    assert not state_file.exists()
