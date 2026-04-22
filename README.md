@@ -83,6 +83,16 @@ pwsh scripts/install.ps1 -AppendAgentsRule
 **動作確認はどうすれば?**
 Codex で日本語応答を 1 回もらった後、`~/.codex/state/jp-harness-lite.jsonl` に 1 行追加されていれば正常動作です。
 
+**自動修正が本当に機能しているか確認するには?**
+違反が検出されると、Codex は同じターン内で自動で言い直します（strict-lite モードの挙動）。`jp-harness-lite.jsonl` の同じ `session` の連続エントリで、`ok: false` → 十数秒後に `ok: true` が続いていれば、修正ループが成立している証拠です。実例:
+
+```jsonl
+{"ts":"2026-04-22T02:06:01Z","session":"019daea0-…","ok":false,"violation_count":2,"rule_counts":{"sentence_too_long":1,"banned_term":1},"mode":"strict-lite", ...}
+{"ts":"2026-04-22T02:06:17Z","session":"019daea0-…","ok":true,"violation_count":0,"rule_counts":{},"mode":"strict-lite", ...}
+```
+
+16 秒差で `ok: true` に遷移しているのは、最初の応答で違反 2 件を検出 → Codex が自動 continuation で言い直し → クリーンな応答で確定、の流れを意味します。
+
 **動かないときは?**
 Codex を完全に終了して再起動してください。config.toml や hooks.json は起動時にしか読まれません。それでもダメなら [DEVELOPERS.md](DEVELOPERS.md) の troubleshooting を参照してください。
 
