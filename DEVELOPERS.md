@@ -93,7 +93,7 @@ Windows の `.venv` path は `.venv/Scripts/python.exe`。
 - [docs/INSTALL.md](docs/INSTALL.md) — インストールの詳細手順とトラブル対応
 - [docs/HOOKS.md](docs/HOOKS.md) — Stop hook / SessionStart hook の入出力契約
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — 運用手順、カスタマイズ、メトリクス解析
-- [docs/DEPRECATION.md](docs/DEPRECATION.md) — 撤去トリガー
+- [docs/DEPRECATION.md](docs/DEPRECATION.md) — プロジェクトのアーカイブ条件
 
 ## Contributing
 

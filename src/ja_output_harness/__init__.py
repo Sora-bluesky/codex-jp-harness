@@ -1,3 +1,3 @@
-"""ja-output-harness: Codex (CLI / App) Japanese output quality gate."""
+"""ja-output-harness: Hook-based Japanese chat-reply quality harness for Codex (CLI / App)."""
 
 __version__ = "0.4.1"
