@@ -8,7 +8,7 @@ license = { text = "MIT" }
 authors = [
     { name = "sora", email = "noreply@example.com" }
 ]
-keywords = ["mcp", "japanese", "lint", "quality-gate", "llm", "coding-agent"]
+keywords = ["codex", "codex-cli", "codex-app", "japanese", "lint", "quality-gate", "hooks"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
