@@ -99,7 +99,24 @@ try {
         $tempFile = [System.IO.Path]::GetTempFileName()
         try {
             [System.IO.File]::WriteAllText($tempFile, $lastMsg, [System.Text.UTF8Encoding]::new($false))
-            $raw = & $venvPy -m ja_output_harness.rules_cli --check $tempFile 2>$null
+            # Append-lite path: rules_cli persists the entry through
+            # metrics.record_lite under the rotate+lock primitives so that
+            # concurrent Stop hooks cannot interleave half-written lines.
+            # The previous local `Add-Content` path was not atomic on
+            # Windows (v0.4.2 follow-up to gpt-5.4 review #51).
+            $liteStateFile = Join-Path $stateDir 'jp-harness-lite.jsonl'
+            $sessionId     = ''
+            if ($null -ne $payload.session_id) {
+                $sessionId = [string]$payload.session_id
+            }
+            # `--session=` / `--mode=` use the equals form so a session id
+            # that ever begins with `-` is not parsed as a separate flag
+            # (gpt-5.4 review v0.4.2 MINOR).
+            $raw = & $venvPy -m ja_output_harness.rules_cli `
+                --check $tempFile `
+                --append-lite $liteStateFile `
+                "--session=$sessionId" `
+                "--mode=$mode" 2>$null
             if ([string]::IsNullOrWhiteSpace($raw)) { exit 0 }
             try {
                 $result = $raw | ConvertFrom-Json -ErrorAction Stop
@@ -113,22 +130,6 @@ try {
                     $ruleCountsHash[$_.Name] = $_.Value
                 }
             }
-
-            $liteStateFile = Join-Path $stateDir 'jp-harness-lite.jsonl'
-            $now     = [DateTime]::UtcNow
-            $expires = $now.AddHours(24)
-            $entry = [ordered]@{
-                schema_version   = '1'
-                ts               = $now.ToString("yyyy-MM-ddTHH:mm:ssZ")
-                session          = [string]$payload.session_id
-                ok               = [bool]$result.ok
-                violation_count  = [int]$result.violation_count
-                rule_counts      = $ruleCountsHash
-                mode             = $mode
-                expires          = $expires.ToString("yyyy-MM-ddTHH:mm:ssZ")
-            }
-            $line = $entry | ConvertTo-Json -Compress
-            Add-Content -Path $liteStateFile -Value $line -Encoding utf8
 
             # Codex sets stop_hook_active = true when the current Stop
             # event is itself the result of a prior Stop hook continuation.

@@ -354,3 +354,89 @@ def test_concurrent_record_preserves_all_entries(tmp_path: Path) -> None:
     # All writes must survive (no truncated / clobbered lines).
     assert len(lines) == N
     assert len(drafts) >= 2  # at least "draft-0".."draft-9" differ in length
+
+
+def test_record_lite_writes_expected_schema(tmp_path: Path) -> None:
+    target = tmp_path / "lite.jsonl"
+    metrics.record_lite(
+        session="sess-abc",
+        mode="strict-lite",
+        ok=False,
+        violation_count=3,
+        rule_counts={"banned_term": 2, "sentence_too_long": 1},
+        path=target,
+    )
+    lines = target.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["schema_version"] == metrics.LITE_SCHEMA_VERSION
+    assert entry["session"] == "sess-abc"
+    assert entry["mode"] == "strict-lite"
+    assert entry["ok"] is False
+    assert entry["violation_count"] == 3
+    assert entry["rule_counts"] == {"banned_term": 2, "sentence_too_long": 1}
+    # Match the exact format the previous shell hooks emitted so external
+    # readers (ja-output-stats, ad-hoc jq) keep working.
+    assert entry["ts"].endswith("Z") and "T" in entry["ts"]
+    assert entry["expires"].endswith("Z") and "T" in entry["expires"]
+
+
+def test_record_lite_swallows_io_errors(tmp_path: Path) -> None:
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("blocker", encoding="utf-8")
+    bad = blocker / "child" / "lite.jsonl"
+    metrics.record_lite(
+        session="sess",
+        mode="lite",
+        ok=True,
+        violation_count=0,
+        rule_counts={},
+        path=bad,
+    )  # must not raise
+
+
+def test_record_lite_coerces_rule_count_types(tmp_path: Path) -> None:
+    target = tmp_path / "lite.jsonl"
+    # Stop hook may forward Counter / non-string keys when result.rule_counts
+    # is parsed back from JSON; record_lite must normalise to str/int so the
+    # on-disk schema stays predictable.
+    metrics.record_lite(
+        session="s",
+        mode="lite",
+        ok=False,
+        violation_count=2,
+        rule_counts={"banned_term": True, "x": 1.7},  # type: ignore[dict-item]
+        path=target,
+    )
+    entry = json.loads(target.read_text(encoding="utf-8").splitlines()[0])
+    assert entry["rule_counts"] == {"banned_term": 1, "x": 1}
+
+
+def test_concurrent_record_lite_preserves_all_entries(tmp_path: Path) -> None:
+    """v0.4.2: rotate+lock now extends to record_lite — no race on the Stop hook path."""
+    import threading
+
+    target = tmp_path / "lite-concurrent.jsonl"
+    N = 32
+
+    def writer(i: int) -> None:
+        metrics.record_lite(
+            session=f"sess-{i}",
+            mode="strict-lite",
+            ok=(i % 2 == 0),
+            violation_count=i,
+            rule_counts={"banned_term": i},
+            path=target,
+        )
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(N)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    lines = target.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == N
+    sessions = {json.loads(line)["session"] for line in lines}
+    # Every concurrent writer used a unique session id; all must survive.
+    assert sessions == {f"sess-{i}" for i in range(N)}

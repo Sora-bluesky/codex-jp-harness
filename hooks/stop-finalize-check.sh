@@ -97,6 +97,9 @@ def _run_lite(payload, last_msg, state_dir, mode):
     if not venv_py or not os.path.exists(venv_py):
         return 0
 
+    lite_state = state_dir / "jp-harness-lite.jsonl"
+    session_id = str(payload.get("session_id", ""))
+
     tf = tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", delete=False, suffix=".txt"
     )
@@ -108,8 +111,21 @@ def _run_lite(payload, last_msg, state_dir, mode):
             # Inner timeout deliberately tighter than the hook-wide 15s
             # declared in config/hooks.example.json, leaving ~5s headroom
             # for cold Python start on Windows (gpt-5.4 review MEDIUM #5).
+            # --append-lite hands the jsonl write to metrics.record_lite,
+            # which holds the rotate+lock primitives so concurrent Stop
+            # hooks cannot interleave entries (Windows append is not
+            # atomic). v0.4.2 follow-up to gpt-5.4 review #51.
+            # `--session=` / `--mode=` use the equals form so a session id
+            # that ever begins with `-` is not parsed as a separate flag
+            # (gpt-5.4 review v0.4.2 MINOR).
             proc = subprocess.run(
-                [venv_py, "-m", "ja_output_harness.rules_cli", "--check", tempfile_path],
+                [
+                    venv_py, "-m", "ja_output_harness.rules_cli",
+                    "--check", tempfile_path,
+                    "--append-lite", str(lite_state),
+                    "--session=" + session_id,
+                    "--mode=" + mode,
+                ],
                 capture_output=True, text=True, encoding="utf-8", timeout=10,
             )
         except Exception:
@@ -123,24 +139,6 @@ def _run_lite(payload, last_msg, state_dir, mode):
             return 0
         rule_counts = result.get("rule_counts") or {}
         ok = bool(result.get("ok"))
-        now = datetime.datetime.utcnow()
-        expires = now + datetime.timedelta(hours=24)
-        entry = {
-            "schema_version": SCHEMA_VERSION,
-            "ts": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "session": str(payload.get("session_id", "")),
-            "ok": ok,
-            "violation_count": int(result.get("violation_count") or 0),
-            "rule_counts": rule_counts,
-            "mode": mode,
-            "expires": expires.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
-        lite_state = state_dir / "jp-harness-lite.jsonl"
-        try:
-            with lite_state.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except Exception as e:
-            sys.stderr.write("[ja-output-harness] lite jsonl write error: " + str(e) + "\n")
 
         # Codex sets stop_hook_active = true when the current Stop event is
         # itself the result of a prior Stop hook continuation. Emitting

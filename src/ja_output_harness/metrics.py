@@ -43,10 +43,12 @@ def metrics_path() -> Path:
 def lite_metrics_path() -> Path:
     """Return the path to the lite-mode Stop hook jsonl file.
 
-    Written by ``hooks/stop-finalize-check.{ps1,sh}`` in lite / strict-lite
-    modes. Unlike ``metrics_path()`` this file is not rotated yet (see
-    v0.4.1 follow-up: share ``_rotate_lock`` into a helper module so the
-    hook can reuse it).
+    Written via :func:`record_lite` (called by ``rules_cli`` from
+    ``hooks/stop-finalize-check.{ps1,sh}``). Shares the rotate+lock
+    primitives with :func:`record` so concurrent Stop hook invocations
+    on Windows (where O_APPEND is not atomic) cannot interleave
+    entries; if the lock cannot be acquired the metric is dropped
+    rather than written without protection (see :func:`record_lite`).
     """
     return _codex_home() / "state" / "jp-harness-lite.jsonl"
 
@@ -179,4 +181,63 @@ def record(
                 f.write(line)
     except Exception:
         # Never let a metrics write failure break the tool call.
+        return
+
+
+# Schema version of jp-harness-lite.jsonl entries. Kept distinct from the
+# strict metrics SCHEMA_VERSION so the two files can evolve independently.
+LITE_SCHEMA_VERSION = "1"
+
+
+def record_lite(
+    *,
+    session: str,
+    mode: str,
+    ok: bool,
+    violation_count: int,
+    rule_counts: dict[str, int] | None = None,
+    path: Path | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    expires_hours: int = 24,
+) -> None:
+    """Append one lite-mode Stop hook entry under the rotate+lock primitives.
+
+    The schema mirrors what ``hooks/stop-finalize-check.{ps1,sh}`` wrote
+    pre-v0.4.2 directly via ``Add-Content`` / raw ``open('a')`` — those
+    paths are not atomic on Windows. Routing the write through Python
+    lets the hook share :func:`_rotate_lock` with :func:`record`, so
+    concurrent Stop events cannot interleave half-written lines.
+
+    Like :func:`record`, every I/O failure is swallowed: a metrics drop
+    must never break the user's Codex turn (gpt-5.4 review #51).
+
+    Unlike :func:`record`, when the rotate lock cannot be acquired we
+    drop the entry rather than fall back to an unprotected append.
+    Preventing the Windows non-atomic append is the entire reason this
+    function exists, so a "best-effort" fallback would defeat the
+    purpose (gpt-5.4 review v0.4.2 MEDIUM #2).
+    """
+    try:
+        target = path if path is not None else lite_metrics_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        now = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+        expires = now + datetime.timedelta(hours=expires_hours)
+        entry = {
+            "schema_version": LITE_SCHEMA_VERSION,
+            "ts": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "session": str(session),
+            "ok": bool(ok),
+            "violation_count": int(violation_count),
+            "rule_counts": {str(k): int(v) for k, v in (rule_counts or {}).items()},
+            "mode": str(mode),
+            "expires": expires.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        with _rotate_lock(target) as acquired:
+            if not acquired:
+                return
+            _maybe_rotate(target, max_bytes)
+            with target.open("a", encoding="utf-8") as f:
+                f.write(line)
+    except Exception:
         return
