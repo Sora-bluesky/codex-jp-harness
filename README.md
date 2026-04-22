@@ -32,7 +32,8 @@ Codex 0.120 以降が公開した公式の拡張ポイント（**Stop hook** と
 - **Codex CLI**（`codex` コマンドが PATH 上で使えること、バージョン 0.120 以降）
   - install スクリプトが hook 機能の有効化（`codex features enable codex_hooks`）に使うため、Codex App だけを使う場合でも CLI のインストールが必要です。
   - CLI が未導入の場合、install スクリプトは MCP 経由の `strict` モード（v0.3.x 互換、追加トークンあり）に自動でフォールバックします。
-- Python 3.11 以降 と [uv](https://docs.astral.sh/uv/)
+- Python 3.11 以降
+- [uv](https://docs.astral.sh/uv/) — Python の仮想環境とパッケージを一括管理するツール（`pip` + `venv` の高速な代替）。未導入なら [公式の install 手順](https://docs.astral.sh/uv/getting-started/installation/) で 1 コマンドで入ります
 - macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
 
 ## クイックスタート
