@@ -1,7 +1,7 @@
 [project]
 name = "ja-output-harness"
 version = "0.4.1"
-description = "Japanese output quality gate for LLM coding agents (Codex CLI/App 等) via MCP finalize server"
+description = "Hook-based Japanese chat-reply quality harness for Codex CLI/App (unofficial, not affiliated with OpenAI)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
