@@ -19,7 +19,21 @@ Codex 0.120 以降が公開した公式の拡張ポイント（**Stop hook** と
 
 検品ロジックは Codex の LLM 呼び出しの **外側** で走るため、応答トークンには 1 byte も足しません。追加の API コールも外部通信もありません。Codex の continuation が走るときだけ 1 ターン分の追加トークンが発生します（実測で +15% 程度、違反ゼロなら 0%）。
 
-使うファイルは全てローカル: 設定は `~/.codex/hooks.json` と `~/.codex/AGENTS.md` の管理ブロック、記録は `~/.codex/state/jp-harness-*.jsonl`。ソースは [hooks/](hooks/) と [src/ja_output_harness/](src/ja_output_harness/) で読めます。
+使うファイルは全てローカル。install スクリプトが触るのは `~/.codex/` 配下のみ（Codex 本体の設定と同じ場所）で、新規ファイルと、既存ファイルへの「管理ブロック追記」が混在します。
+
+```text
+~/.codex/
+├── AGENTS.md                         # 既存に追記（BEGIN/END マーカーで囲まれた管理ブロック）
+├── config.toml                       # 既存に追記（codex_hooks feature を有効化。strict モード時のみ [mcp_servers.jp_lint] も追加）
+├── hooks.json                        # 新規、または既存の hooks 設定に Stop / SessionStart のエントリを追加
+├── skills/jp-harness-tune/SKILL.md   # 新規（tune スキルの定義ファイル）
+└── state/
+    ├── jp-harness-mode               # 新規（現在のモード名を書いた 1 行のマーカー）
+    ├── jp-harness-lite.jsonl         # 実行時に新規 → 検品結果が 1 ターンごとに追記される
+    └── jp-harness-cursor.json        # 実行時に新規（SessionStart hook が消費位置を記録）
+```
+
+アンインストールは上記のうち BEGIN/END マーカーの管理ブロックと、ハーネス専用の新規ファイルだけを掃除します。手書きした他の設定には触れません。ソースは [hooks/](hooks/) と [src/ja_output_harness/](src/ja_output_harness/) で読めます。
 
 ## 誰に向いているか
 
