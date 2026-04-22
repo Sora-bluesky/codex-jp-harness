@@ -65,26 +65,44 @@ pwsh scripts/install.ps1 -AppendAgentsRule
 
 ## よくある質問
 
-**トークン消費は増えますか?**
-基本は増えません。検品は Codex の外側でローカル実行されるため、応答トークンには 1 byte も足しません。違反が検出されたときだけ Codex が同じターン内で 1 回追加で動きます（実測で +15% 程度）。
+> **Q. トークン消費は増えますか?**
+>
+> A. 基本は増えません。検品は Codex の外側でローカル実行されるため、応答トークンには 1 byte も足しません。違反が検出されたときだけ Codex が同じターン内で 1 回追加で動きます（実測で +15% 程度）。
 
-**コードや会話内容が外部に送信されたりしますか?**
-しません。検品は完全にローカルで実行されます。外部通信は一切ありません。
+> **Q. コードや会話内容が外部に送信されたりしますか?**
+>
+> A. しません。検品は完全にローカルで実行されます。外部通信は一切ありません。
 
-**既存の AGENTS.md や config.toml に影響しますか?**
-管理ブロックを明示的に区切って追記するだけで、既存のルールや設定には一切触れません。アンインストール時も同じブロックだけを削除します。
+> **Q. 既存の AGENTS.md や config.toml に影響しますか?**
+>
+> A. 管理ブロックを明示的に区切って追記するだけで、既存のルールや設定には一切触れません。アンインストール時も同じブロックだけを削除します。
 
-**合わないルールがあります**
-[`config/banned_terms.yaml`](config/banned_terms.yaml) を編集して追加・削除・severity の調整ができます。プロジェクトごとの上書きも可能です（詳細は [DEVELOPERS.md](DEVELOPERS.md)）。
+> **Q. 合わないルールがあります。**
+>
+> A. [`config/banned_terms.yaml`](config/banned_terms.yaml) を編集して追加・削除・severity の調整ができます。プロジェクトごとの上書きも可能です（詳細は [DEVELOPERS.md](DEVELOPERS.md)）。
 
-**「違反ありでもそのまま返してほしい」時は?**
-プロンプトに「検品不要」「このまま返答」などと指示すれば Codex がスキップします。強制ではない設計です。
+> **Q. 「違反ありでもそのまま返してほしい」時は?**
+>
+> A. プロンプトに「検品不要」「このまま返答」などと指示すれば Codex がスキップします。強制ではない設計です。
 
-**動作確認はどうすれば?**
-Codex で日本語応答を 1 回もらった後、`~/.codex/state/jp-harness-lite.jsonl` に 1 行追加されていれば正常動作です。
+> **Q. 動作確認はどうすれば?**
+>
+> A. Codex で日本語応答を 1 回もらった後、`~/.codex/state/jp-harness-lite.jsonl` に 1 行追加されていれば正常動作です。
 
-**動かないときは?**
-Codex を完全に終了して再起動してください。config.toml や hooks.json は起動時にしか読まれません。それでもダメなら [DEVELOPERS.md](DEVELOPERS.md) の troubleshooting を参照してください。
+> **Q. 自動修正が本当に機能しているか確認するには?**
+>
+> A. 違反が検出されると、Codex は同じターン内で自動で言い直します（strict-lite モードの挙動）。`jp-harness-lite.jsonl` の同じ `session` の連続エントリで、`ok: false` → 十数秒後に `ok: true` が続いていれば、修正ループが成立している証拠です。実例:
+>
+> ```jsonl
+> {"ts":"2026-04-22T02:06:01Z","session":"019daea0-…","ok":false,"violation_count":2,"rule_counts":{"sentence_too_long":1,"banned_term":1},"mode":"strict-lite", ...}
+> {"ts":"2026-04-22T02:06:17Z","session":"019daea0-…","ok":true,"violation_count":0,"rule_counts":{},"mode":"strict-lite", ...}
+> ```
+>
+> 16 秒差で `ok: true` に遷移しているのは、最初の応答で違反 2 件を検出 → Codex が自動 continuation で言い直し → クリーンな応答で確定、の流れを意味します。
+
+> **Q. 動かないときは?**
+>
+> A. Codex を完全に終了して再起動してください。config.toml や hooks.json は起動時にしか読まれません。それでもダメなら [DEVELOPERS.md](DEVELOPERS.md) のトラブルシューティングを参照してください。
 
 ## アンインストール
 
