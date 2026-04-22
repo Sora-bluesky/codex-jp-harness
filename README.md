@@ -1,140 +1,36 @@
 # ja-output-harness
 
-Codex が日本語で書く報告・ドキュメント・記事を検品する Python パッケージです。利用環境に合わせて 3 つのモードから選べます — **Codex CLI** には output トークン 0% overhead の `lite` モード、**Codex App**（デスクトップ）には v0.3.x 互換の `strict` モード、中間に自己修正型の `strict-lite`。install スクリプトは環境を自動判定して推奨モードを選びます。
+Codex が返す日本語を、自動で読みやすく整えるローカル検品ツール。
 
-> 🪙 **v0.4.0 で何が変わった?**: v0.3.x のデフォルトは MCP gate で **output-factor 3.00×（excess +200%）**でした。「トークン節約したい」層の採用障壁になっていたため、v0.4.0 からは Stop hook + ローカル検品の `lite` モードを追加し、**Codex CLI 環境では自動的に lite を推奨**するようになりました。`lite` は output 側に 1 byte も足しません。一方 **Codex App 単独環境では `strict`（v0.3.x 互換）が自動選択**されます — Codex 0.122 の experimental feature allowlist（[codex-rs/app-server/src/config_api.rs:45](https://github.com/openai/codex/blob/rust-v0.122.0/codex-rs/app-server/src/config_api.rs#L45)）に `codex_hooks` が無いため App では hook engine を有効化できないためです。upstream で allowlist が拡大され次第 App も lite 対応になる予定。強制力と overhead のトレードオフは [3 モード比較](#モード選択) を参照してください。
+Codex で日本語の報告や記事を書かせると、英単語が裸で混ざり、技術比喩が助詞に溶け込み、1 文が長すぎる — ということが頻発します。このプロジェクトはそれを機械的に封じます。インストール後はあなたの操作は不要です。
 
-> ⚠️ **Disclaimer / 免責**
+> [!WARNING]
+> **Disclaimer**
 >
-> This is an unofficial community project and is **not affiliated with, endorsed by, or sponsored by OpenAI**. "Codex", "ChatGPT" and related marks are trademarks of OpenAI, referenced here only to describe the target CLI / app that this harness gates. All other trademarks belong to their respective owners.
->
-> 本プロジェクトは OpenAI による支援・承認・提携を受けていない**非公式のコミュニティツール**です。「Codex」「ChatGPT」等は OpenAI の商標であり、本ハーネスが検査対象とする CLI / アプリを客観的に指す目的でのみ言及しています。その他の商標は各権利者に帰属します。
+> 本プロジェクトは OpenAI による支援・承認・提携を受けていない**非公式のコミュニティツール**です。「Codex」「ChatGPT」等は OpenAI の商標であり、本ハーネスが検査対象とする CLI / アプリを客観的に指す目的でのみ言及しています。
 
-> ℹ️ **対応範囲**: 本ハーネスは Codex CLI と Codex App の両方を対象にしますが、**`lite` / `strict-lite` モードは Codex CLI でのみ動作**します。Codex App では 0.122 時点で `codex_hooks` experimental feature を有効化する API が無く、hook engine 自体が初期化されません（App の runtime feature allowlist は `apps / plugins / tool_search / tool_suggest / tool_call_mcp_elicitation` の 5 個のみ）。App 環境では **`strict` モード（MCP `finalize` gate、v0.3.x 互換）が選ばれます** — こちらは output overhead と引き換えに確実なリアルタイム検品が効きます。CLI / App を併用している環境では、install スクリプトが CLI を検出して `lite` を推奨します（CLI で作業した時だけ lite が効き、App で作業した時は strict が効く、というハイブリッド運用になります）。
+## 何をするか
 
-📝 **設計の経緯・実測データ（32→0 違反）の解説記事**: [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/ja-output-harness-milestone)
+- Codex の日本語応答を毎回ローカルで検品する
+- 違反があれば Codex にその場で自己修正させる
+- 修正しきれなかった違反は次のセッション開始時に再教育する
+- 追加の外部通信は一切なし、応答トークンも増えない
 
-> ⚠️ **本ツールは暫定対策です**。OpenAI が Codex 本体に日本語自然化を公式実装するまでの繋ぎとして設計されています。公式対応が出揃った時点でこのリポジトリは archive されます。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照してください。
+## 誰に向いているか
 
-## 1. なぜ存在するのか
+- Codex（CLI または App）で日本語の報告・記事・ドキュメントを書く人
+- 英単語が素のまま混ざる日本語に不満を感じている人
+- プロンプトで何度注意しても直らない挙動を、仕組みで封じたい人
 
-Codex の日本語出力には、日本語として読みづらい特徴が頻発します:
+## 必要なもの
 
-- 英語語順をそのまま直訳した文
-- 禁止すべき英語比喩（`slice`, `parity`, `fail-close` 等）が助詞でそのまま混入
-- ファイル名と一般語がバッククォートなしで混在
-- 1 文に英語識別子が 3 個以上詰め込まれるケース（極端には 7 個以上になることもある）
-
-Codex には出力前のフック（postprocess、つまり最終応答の直前に文字列を書き換える機構）が公式には存在しないため、ルール（`AGENTS.md`）だけでは違反が混入し続けます。本ハーネスは **MCP サーバーを「検品係」として間に挟み**、Codex が最終応答を出す直前に必ず通るゲートとして機能します。加えて Codex 0.120.0 以降の Stop / SessionStart フックで**呼び忘れを次セッションで再教育**する後方検知ループを持ちます（CLI / App どちらでも同じフックが動きます）。
-
-### 主な機能
-
-| 機能 | 検出対象 / 挙動 |
-|---|---|
-| 禁止語検出 | バンドル 26 語（主な例: `slice`, `parity`, `done`, `active`, `ready`, `squash`, `dispatch`, `handoff`, `regression`, `fail-close`, `fast-forward`, `contract drift` ほか）。完全な一覧は [`config/banned_terms.yaml`](config/banned_terms.yaml) |
-| バッククォート抜け検出 | ファイル名・ブランチ名・パラメータ名の裸書き (`bare_identifier`)、`PR #123` / `issue #42` の裸書き (`pr_issue_number`) |
-| 1 文識別子過多検出 | 1 文に英語識別子が 3 個以上（`identifier_limit_per_sentence: 2` 超過で検出） |
-| 文長過多検出 | 1 文 80 文字超、または識別子を含む文で 50 文字超（音読できる長さの目安） |
-| 呼び忘れ検知（Stop hook） | `finalize` 未呼び出しの日本語応答を state ファイルに記録 |
-| 再教育ループ（SessionStart hook） | 次回セッション起動時に再教育プロンプトを注入 |
-
-## 2. 仕組み
-
-```
-ユーザー: 「進捗を報告して」
-Codex:   （下書き作成）
-Codex:   → mcp__jp_lint__finalize(draft) を呼ぶ
-jp-lint: 禁止語・バッククォート抜け・識別子過多を検査
-         → NG なら violations を返す
-Codex:   （violations を読んで書き直し）
-Codex:   → mcp__jp_lint__finalize(rewrite) 再呼び出し
-jp-lint: ok:true を返す
-Codex:   クリーン版のみユーザーに返す
-```
-
-**呼び忘れが起きた場合**の後方検知ループ:
-
-```
-Stop hook:         transcript に finalize が出ていなければ state に記録
-SessionStart hook: 次回起動時に state を読み、再教育プロンプトを注入
-```
-
-この二層構成で、**同一ターン内での自動修正（95%+）と、翌セッションでの再教育（残り数%）** をカバーします。
-
-- 全体像（スイスチーズモデル）: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- hook 詳細仕様と state スキーマ: [`docs/HOOKS.md`](docs/HOOKS.md)
-
-## モード選択
-
-v0.4.0 以降は 3 モードから選べる。install スクリプトは Codex CLI を検出できれば `lite`、できなければ `strict` を推奨（`--mode` で明示指定すれば上書き）。
-
-| モード | output-factor | excess overhead | 強制力 | 仕組み | Codex CLI | Codex App | 対象 |
-|---|---|---|---|---|---|---|---|
-| **lite** | ~1.00× | **+0.00×** | post-hoc（翌セッションで再教育） | Stop hook が assistant message をローカル検品 → `jp-harness-lite.jsonl` 記録 | ✓ | ✗ | CLI ユーザー向け。「トークン最優先、違反は後から直せば OK」 |
-| **strict-lite** | ~1.15× | +0.15× | real-time（continuation で自己修正） | 同じローカル検品 + ERROR 時に `{"decision":"block"}` を emit → Codex 自動再試行 | ✓ | ✗ | CLI ユーザー向け。「overhead は許容、高精度を求める」 |
-| **strict** | ~2.00〜3.00× | +1.00〜+2.00× | real-time（MCP gate） | MCP `finalize` server が ターンごとに draft を検査 | ✓ | ✓ | **App ユーザー含む全環境で動く**。「compliance 最優先、overhead 許容」 |
-
-> **Codex App で lite / strict-lite が動かない理由**: Codex 0.122 の app-server は experimental feature の runtime 有効化を [5 key の allowlist](https://github.com/openai/codex/blob/rust-v0.122.0/codex-rs/app-server/src/config_api.rs#L45) に限定しており、`codex_hooks` が含まれていません。`[features].codex_hooks = true` を config.toml に書いても App では hook engine が初期化されません。upstream で allowlist が拡大されるまで App では `strict` をお使いください（CLI 併用なら lite も CLI 側では効きます）。
-
-### どれを選ぶか?
-
-```
-Codex CLI を使っていて、トークン消費を節約したい → lite
-Codex CLI で違反検出を実時間で抑えたい + 多少の overhead は許容 → strict-lite
-Codex App を使っている / v0.3.x と同等の厳格ゲートを維持したい → strict
-迷ったら install スクリプトの自動判定に任せる（明示指定なしで OK）
-```
-
-### 切替方法
-
-```bash
-# 新規 install — mode は自動判定（CLI あり → lite、App のみ → strict）
-bash scripts/install.sh --append-agents-rule
-
-# 明示指定で自動判定を上書き
-bash scripts/install.sh --mode=strict-lite --append-agents-rule --force-hooks
-pwsh scripts/install.ps1 -Mode lite -AppendAgentsRule -ForceHooks
-```
-
-既存の strict から lite へ移行する場合は `-AppendAgentsRule -ForceHooks` を付ける。旧 AGENTS.md ルールブロックと MCP server 登録が自動で片付く。
-
-## 3. インストール
-
-### 対象環境
-
+- Codex 0.120 以降（CLI または App）
+- Python 3.11 以降 と [uv](https://docs.astral.sh/uv/)
 - macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
-- Python 3.11+
-- Codex CLI または Codex App がインストール済み（`~/.codex/` が存在すること）。hooks を使う場合は **Codex 0.120.0 以上**
-- [uv](https://github.com/astral-sh/uv)（推奨）または pip
 
-### パターン A: 超簡易インストール（Codex に任せる）
+## Quick Start
 
-下記のプロンプトを Codex（CLI / App どちらでも）にそのまま貼り付けるだけで、Codex が自律的に進めます。
-
-```
-次のリポジトリを自分のマシンにインストールしてほしい:
-https://github.com/Sora-bluesky/ja-output-harness
-
-手順:
-1. 任意のプロジェクト用ディレクトリに git clone する
-   (例: Windows なら %USERPROFILE%\Projects\ など、
-    macOS/Linux なら ~/src/ や ~/Projects/ など)
-2. リポジトリ内で `uv sync` を実行する（uv 未インストールならインストールから）
-3. OS に応じたインストールスクリプトを実行する
-   - Windows (PowerShell): `pwsh scripts\install.ps1 -AppendAgentsRule`
-   - macOS / Linux / Git Bash: `bash scripts/install.sh --append-agents-rule`
-   (Codex config.toml への MCP 登録、AGENTS.md への品質ゲート規約追記、
-    jp-harness-tune skill の ~/.codex/skills/ への配置を一括で行う)
-4. `mcp__jp_lint__finalize(draft="slice を進めた")` を呼んで ok:false が返ることを確認する
-5. 完了したら、Codex（CLI または App）の再起動が必要であることを私に伝える
-
-各手順の結果を簡潔に報告しながら進めてよい。
-破壊的な操作が必要になった時だけ確認して。それ以外は自律的に進めてよい。
-```
-
-### パターン B: 手動インストール
-
-**macOS / Linux / Git Bash on Windows**:
+### 1. インストール
 
 ```bash
 git clone https://github.com/Sora-bluesky/ja-output-harness.git
@@ -143,272 +39,53 @@ uv sync
 bash scripts/install.sh --append-agents-rule
 ```
 
-**Windows (PowerShell)**:
+Windows PowerShell の場合は最後の行を次に置き換えます:
 
 ```powershell
-git clone https://github.com/Sora-bluesky/ja-output-harness.git
-cd ja-output-harness
-uv sync
-pwsh scripts\install.ps1 -AppendAgentsRule
+pwsh scripts/install.ps1 -AppendAgentsRule
 ```
 
-どちらのスクリプトも `~/.codex/config.toml` に MCP サーバー登録を追記し、`~/.codex/skills/jp-harness-tune/SKILL.md` を配置します（`--skip-skill` / `-SkipSkill` で skill 配置のみ opt-out 可）。`--append-agents-rule` / `-AppendAgentsRule` 指定時は `~/.codex/AGENTS.md` にも `config/agents_rule.md` の内容を追記します。
+### 2. Codex を再起動
 
-### hooks を有効化する（opt-in, experimental）
+システムトレイから完全に終了 → 起動し直します（アプリはウィンドウを閉じるだけだと常駐することがあります）。
 
-Stop + SessionStart hook で呼び忘れの後方検知ループを有効にするには `--enable-hooks` / `-EnableHooks` を追加:
+### 3. 使う
+
+いつも通り Codex を使うだけ。日本語応答のたびに裏で検品が走り、違反があれば Codex が自己修正します。
+
+## 動作確認
+
+Codex で日本語応答を 1 回もらった後、次のファイルに 1 行追加されていれば正常動作です。
+
+```
+~/.codex/state/jp-harness-lite.jsonl
+```
+
+## 何が違反として検出されるか
+
+- **裸の英単語**: `parity` `slice` `pipeline` 等をバッククォート無しで書く
+- **技術比喩の流用**: `fail-close` `fast-forward` `handoff` 等を助詞で使う
+- **識別子過多**: 1 文に英語識別子を 3 個以上
+- **長文**: 1 文 80 文字超（識別子を含む文では 50 文字超）
+- **裸の PR / issue 番号**: `PR #123` `issue #42` 形式
+
+ルールは [`config/banned_terms.yaml`](config/banned_terms.yaml) で追加・調整できます。
+
+## アンインストール
 
 ```bash
-bash scripts/install.sh --append-agents-rule --enable-hooks
+bash scripts/uninstall.sh
 ```
 
-```powershell
-pwsh scripts\install.ps1 -AppendAgentsRule -EnableHooks
-```
+PowerShell は `pwsh scripts/uninstall.ps1`。あなたが書いた AGENTS.md や他の Codex 設定には触れません。
 
-これで `~/.codex/hooks.json` が生成され、`config.toml` に `codex_hooks = true` が追記されます。Codex 0.120.0 未満では警告が出て hooks 設定はスキップされます（他のインストール処理は継続）。詳細と仕様は [`docs/HOOKS.md`](docs/HOOKS.md) を参照。
+## リンク
 
-### インストールで変更されるユーザー環境
+- **[CHANGELOG.md](CHANGELOG.md)** — 変更履歴
+- **[DEVELOPERS.md](DEVELOPERS.md)** — アーキテクチャ・モード比較・カスタマイズ・ドッグフーディング
+- **[解説記事（Zenn）](https://zenn.dev/sora_biz/articles/ja-output-harness-milestone)** — 設計の経緯と実測データ（32→0 違反）
+- **[docs/DEPRECATION.md](docs/DEPRECATION.md)** — 撤去条件（Codex 本体が公式対応したらこのリポジトリは archive されます）
 
-```
-~/.codex/
-├── config.toml              [mcp_servers.jp_lint] が追記される
-│                            --enable-hooks 指定時は codex_hooks = true も追記
-├── AGENTS.md                --append-agents-rule 指定時、品質ゲート規約が末尾に追記
-├── hooks.json               --enable-hooks 指定時に生成（テンプレートから置換）
-├── jp_lint.yaml             (任意・手動配置) user-local override
-├── state/
-│   └── jp-harness.jsonl     Stop hook の記録（自動生成、手動管理不要）
-└── skills/
-    └── jp-harness-tune/     install script が自動配置する対話チューニング skill
-        └── SKILL.md
-```
+## License
 
-どちらのインストーラーも、既にエントリが存在する場合はスキップするか再インストール時に書き直すため、**同じコマンドを何度実行しても結果は同じ**（副作用が重複しない）。`scripts/uninstall.ps1` / `scripts/uninstall.sh` は `[mcp_servers.jp_lint]` と `hooks.json` の ja-output-harness 関連エントリを自動削除し、共存する他の hook が無くなった場合にのみ `codex_hooks = true` も外します。`AGENTS.md` は他ルールが混在する可能性があるため手動削除のままです（詳細は [`docs/HOOKS.md`](docs/HOOKS.md#アンインストール)）。
-
-### クローン後のリポジトリ構造
-
-```
-ja-output-harness/
-├── README.md / AGENTS.md / LICENSE / CHANGELOG.md / CONTRIBUTING.md
-├── pyproject.toml                     mcp[cli], pyyaml, pytest, ruff
-├── src/ja_output_harness/
-│   ├── server.py                      FastMCP サーバー本体（finalize ツール公開）
-│   └── rules.py                       lint ロジック（純関数）
-├── config/
-│   ├── banned_terms.yaml              禁止語・閾値の SSoT（26 語バンドル）
-│   ├── agents_rule.md                 ~/.codex/AGENTS.md に追記される品質ゲート規約
-│   └── hooks.example.json             ~/.codex/hooks.json のテンプレート
-├── hooks/
-│   ├── stop-finalize-check.{ps1,sh}   Stop hook
-│   ├── session-start-reeducate.{ps1,sh}  SessionStart hook
-│   └── bench.{ps1,sh}                 hook 性能計測
-├── scripts/
-│   ├── install.{ps1,sh}               インストーラー
-│   └── uninstall.{ps1,sh}             アンインストーラー
-├── skills/jp-harness-tune/            対話チューニング skill
-├── tests/                             pytest 150+ 件 + 実 Codex 出力 fixtures
-└── docs/
-    ├── ARCHITECTURE.md                設計判断（スイスチーズモデル / Tier 比較）
-    ├── HOOKS.md                       hook 仕様・state スキーマ・トラブルシューティング
-    ├── INSTALL.md                     詳細インストール手順
-    ├── OPERATIONS.md                  運用監視・指標・公式対応の観測方法
-    └── DEPRECATION.md                 公式対応時のアンインストール手順
-```
-
-## 4. 運用とチューニング
-
-### severity（重要度）の三段階
-
-各違反には severity が付与される。`finalize` は **ERROR が 0 件なら `ok:true`** を返す。
-
-| severity | 意味 | 対応 |
-|---|---|---|
-| `ERROR` | 読み手に誤解を与える、または日本語として明らかに崩れている | **必ず修正**。残っていれば `ok:false` |
-| `WARNING` | 避けた方が自然だが致命的ではない | 強く推奨。`advisories` で通知されるが `ok:true` は返る |
-| `INFO` | 参考情報（好みの問題） | 読み流してよい |
-
-`finalize` の summary には内訳が含まれる（例: `5件の違反を検出 (3 ERROR, 1 WARNING, 1 INFO)`）。
-
-### User-local override — バンドル規則を自プロジェクトに合わせる
-
-`~/.codex/jp_lint.yaml` を置くと、バンドル済みの `banned_terms.yaml` に対して追加・上書き・無効化ができる。リポジトリのコードは触らない。
-
-**探索優先順位**:
-1. `$CODEX_JP_HARNESS_USER_CONFIG`（明示指定）
-2. `$XDG_CONFIG_HOME/ja-output-harness/jp_lint.yaml`
-3. `~/.codex/jp_lint.yaml`（既定）
-
-**yaml の書き方**:
-
-```yaml
-# ~/.codex/jp_lint.yaml
-
-# バンドル済みの禁止語を無効化（プロジェクト用語と衝突する場合など）
-disable:
-  - slice          # 例: データ分析で "time slice" を常用するチームでは外す
-
-# 既存エントリの severity だけ差し替え
-overrides:
-  handoff:
-    severity: WARNING   # ERROR → WARNING に緩める
-
-# プロジェクト固有の禁止語を追加
-add:
-  - term: foobar
-    suggest: "独自用語 foobar は日本語訳を使う"
-    severity: ERROR
-    category: project
-
-# 閾値を上書き（任意）
-thresholds:
-  identifier_limit_per_sentence: 4    # 既定は 2（1 文 3 個以上で検出）
-  sentence_length:
-    max_chars: 100                    # 既定は 80
-    max_chars_with_identifiers: 60    # 既定は 50
-```
-
-### `ja-output-tune` — 対話的に override を編集する CLI
-
-yaml を直接書くのが億劫なら `ja-output-tune` を使う（`uv sync` 済みの環境で動く）。
-
-```bash
-ja-output-tune show                              # 有効な設定を確認
-ja-output-tune path                              # override ファイルの場所を表示
-ja-output-tune disable slice                     # 一時的に無効化
-ja-output-tune enable slice                      # 戻す
-ja-output-tune set-severity handoff WARNING      # severity を差し替え
-ja-output-tune add foobar --suggest "foobar は日本語訳を使う" --severity ERROR
-ja-output-tune remove foobar
-ja-output-tune discover --file <path>            # Codex 出力から候補を抽出（v0.2.18+）
-```
-
-### 候補の発掘（discover）
-
-Codex の実際の出力には、バンドル済み禁止語に含まれない生英語（`preview` / `review` / `iframe` / `composer` / `overlay` / `context` / `drawer` など）が頻繁に混ざります。手動で 1 語ずつ追加するのは大変なので、`ja-output-tune discover` が **貼ったドラフトから未登録の候補を頻度順で抽出**します。
-
-#### 推奨フロー（スキル経由、対話的）
-
-プロジェクトに馴染む語を対話で絞って登録するなら、Codex App / Codex CLI からスキルを呼ぶのが一番早いです。
-
-**起動**: Codex の入力欄で `$` を押し、一覧から `$jp-harness-tune` を選びます（Codex のスキルは `/` ではなく `$` 記号で呼び出す仕様）。**意図が分かる一文を続けて書く**と、スキルが 6 つの意図メニューを省略して該当フローへ直行します。
-
-```
-$jp-harness-tune 最近の Codex 出力から禁止語の候補を抽出したい
-```
-
-`最近の出力から` / `候補抽出` / `discover` のいずれかのキーワードが含まれていれば意図 6（候補抽出）と判定されます。意図が曖昧な場合のみ、スキルが 6 つの番号付きメニューを出してくるので **6. 候補抽出（discover）** を選んでください（`slice と done をどう扱うべきか` のように特定語だけを出すと、スキルは意図 1 / 2（無効化 or severity 調整）とみなすので、discover したい時は明示的に書いてください）。
-
-**その後のやり取り**:
-
-1. スキルの指示に従って **最近の Codex 応答を貼る**（paste）か、**ファイルパスを指定する**（例: `.claude/local/operator-handoff.md`）
-2. スキルが頻度上位の候補を TSV で提示する
-3. **1 語ずつ次を答える**:
-   - 追加するか（Y/N）— UI ラベルや製品名（`Back to Code`, `Ports` など）は N
-   - 推奨言い換え — スキルが自動提案する日本語を採用するか、別案を書く
-   - severity — 一般名詞は `ERROR`、業界カタカナ語なら `WARNING` で充分な場合もある
-4. 合意のたびにスキルが `ja-output-tune add <term> --suggest "..." --severity ERROR` を内部で実行する
-5. 最後に `ja-output-tune show` で反映を確認。取り消したい語があれば `ja-output-tune remove <term>`
-
-Codex の再起動は不要。MCP サーバーは override を毎回読み直します。次の `finalize` 呼び出しから追加した語が ERROR として検出され、fast-path で自動修正されます。
-
-#### CLI 単体（スクリプト / バッチで使う場合）
-
-```bash
-# ログファイルから抽出（上位 20 語を TSV 出力）
-ja-output-tune discover --file .claude/local/operator-handoff.md --top 20
-
-# パイプ経由
-cat recent-output.md | ja-output-tune discover --stdin --top 20
-
-# JSON 出力（スクリプト処理用）
-ja-output-tune discover --file recent.md --format json --top 20
-```
-
-出力列: `count` / `term` / `suggested_replacement`（辞書から自動補完）/ `first_context`。出力を見て手動で `ja-output-tune add` を叩くこともできますが、判断を挟むためスキル経由を推奨します。
-
-### Codex Skill `$jp-harness-tune` — チューニング専用の対話スキル
-
-**役割**: ルールを変える前に「本当に必要か」をワンクッション挟むための相談相手。利用者が「このルール、自分のプロジェクトには合わない」と感じたときに呼び出します。
-
-**呼び出し方**:
-
-Codex（CLI / App）の入力欄で `$` を押すとスキル一覧が開きます（Codex のスキルは `/` ではなく `$` で呼び出す仕様）。一覧から `$jp-harness-tune` を選び、続けて自然文で相談内容を書きます。
-
-```
-$jp-harness-tune  slice という語をこのリポでは許容したい
-```
-
-**スキルが行う 4 ステップ**:
-
-1. 現在の有効ルールを `ja-output-tune show` で提示
-2. 緩める／追加する前に「本当に必要か」を問う（例: `slice` を外す前に「時間区間」で言い換えられないか）
-3. 合意が取れたら `ja-output-tune` の該当サブコマンドを実行
-4. 変更後の差分と、元に戻す方法を案内
-
-**配置について**: `install.ps1` / `install.sh` が `~/.codex/skills/jp-harness-tune/SKILL.md` を自動配置します。スキル配置が不要な場合は `-SkipSkill` / `--skip-skill` で opt-out。再インストール時、配置先の `SKILL.md` がバンドル版と一致していれば上書き（冪等）、差分があれば上書きをスキップして stderr に警告を出します。
-
-### 典型的な運用フロー
-
-`finalize` が `ok:false` を返したときの判断は、次の 3 分岐に集約されます。
-
-**1. そのまま Codex に書き直させる**（まず最初に試す）
-
-Codex は違反の具体名（`slice` → `時間区間` など）を受け取って自動で rewrite するため、ほとんどのケースはこれで収束します。同じ語が何度も出る場合のみ、下の 2 か 3 を検討してください。
-
-**2. 特定の語を検出対象から外す**（プロジェクト用語として許容したい場合）
-
-例: データ分析チームで `time slice` を日常的に使う → `ja-output-tune disable slice`
-
-**3. プロジェクト固有の禁止語を追加する**（検出されるべき語が検出されていない場合）
-
-例: 社内で過去に誤用が起きた `foobar` を確実に止めたい → `ja-output-tune add foobar --suggest "foobar は日本語訳を使う"`
-
-迷ったら `$jp-harness-tune` スキルを呼んで判断を整理します。ルールを緩める方向の変更は日本語品質を下げる方向なので、スキル側がワンクッション挟みます。
-
-### 運用監視
-
-v0.2.9 以降、`finalize` 呼び出しごとに `~/.codex/state/jp-harness-metrics.jsonl` に 1 行ずつ記録されます（20 MB を超えると 1 世代のみ自動退避、合計約 40 MB で頭打ち）。付属の `ja-output-stats` CLI で集計できます:
-
-```bash
-ja-output-stats show                       # 呼び出し数・ok 率・draft 文字数 / elapsed ms の分布
-ja-output-stats overhead --window 30       # 同一ターン内の retry 率とトークン overhead 推定
-ja-output-stats tail 20                    # 末尾 20 件を生 JSON で表示
-```
-
-月 1 回、以下の指標を確認します:
-- finalize 呼び出し回数（`show` の `total calls`）
-- retry 発生率（`overhead` の `avg retries per turn`。0.5 を超えたら禁止語リストの見直しサイン）
-- 違反種別の分布（`show` の `violations` 統計）
-- 呼び忘れ率（`~/.codex/state/jp-harness.jsonl` の末尾エントリ数。hooks 有効時のみ）
-
-詳細は [`docs/OPERATIONS.md`](docs/OPERATIONS.md) を参照。
-
-## 5. 公式対応への導線
-
-### アンインストール（公式対応時）
-
-OpenAI が Codex（CLI / App）に以下のいずれかを公式実装した時点で、本ハーネスは役目を終えます:
-- Codex 本体が日本語自然化を標準装備
-- Pre-response hook（出力前書き換え）の公式機構
-- `PreSkillUse` / `PostSkillUse` hook（[Issue #17132](https://github.com/openai/codex/issues/17132)）の実装
-
-アンインストール手順は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) 参照。
-
-### v0.2.0 以前の利用者へ（内部呼称の移行）
-
-v0.2.0 以前では `config/agents_rule.md` の本文を内部で「**7.p ルール**」、severity 関連の将来拡張を「**7.q**」と呼んでいました。これらは当初の `~/.codex/AGENTS.md` の番号体系（7.a〜7.o）に由来する歴史的通称で、v0.2.1 以降は「**品質ゲート規約**」に統一しています。
-
-- **実体への影響はなし**: `~/.codex/AGENTS.md` に「7.p」「7.q」として追記済みの内容はそのまま動作します
-- **呼び名だけの変更**: 現行ドキュメントからは「7.p」「7.q」呼称を削除しました（CHANGELOG の過去エントリは歴史的記録として保持）
-- **再インストール時の挙動**: `install.ps1 -AppendAgentsRule` / `install.sh --append-agents-rule` を再実行すると、新しい見出し (`## 日本語技術文の品質ゲート`) で再追記されます。旧ブロックは自動削除されないため、手動で整理してください
-
-### 関連リンク
-
-- Zenn 記事: [Codex の日本語を救ったのは「ずんだもん」だった](https://zenn.dev/sora_biz/articles/ja-output-harness-milestone)（設計経緯・32→0 違反の実測・VOICEVOX 発見）
-- [OpenAI Codex CLI](https://github.com/openai/codex)
-- 関連 Issue: [#17132](https://github.com/openai/codex/issues/17132), [#17532](https://github.com/openai/codex/issues/17532), [#18189](https://github.com/openai/codex/issues/18189)
-
-### ライセンス
-
-MIT License。[LICENSE](LICENSE) 参照。
+[MIT License](LICENSE)
