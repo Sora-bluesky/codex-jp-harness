@@ -55,10 +55,16 @@ $modeMarker    = Join-Path $stateDir "jp-harness-mode"
 # Picking strict for App-only environments keeps v0.3.x-equivalent quality
 # gating instead of silently installing a no-op lite mode.
 function Get-AutoDetectedMode {
+    # v0.4.1: default upgraded from `lite` → `strict-lite` because the v0.4.0
+    # dogfood over Codex App hit 23.8% ok rate (n=21, Wilson 95% CI
+    # [10.6%, 45.1%]). `strict-lite` keeps the same 0 output-token base
+    # overhead as `lite` but adds one continuation turn on ERROR so Codex
+    # can self-correct — expected to lift compliance past the 50%
+    # threshold without reintroducing the strict MCP gate's 3× cost.
     try {
         & codex features list *> $null
         if ($LASTEXITCODE -eq 0) {
-            return 'lite'
+            return 'strict-lite'
         }
     } catch {}
     return 'strict'
