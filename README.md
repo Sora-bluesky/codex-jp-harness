@@ -29,7 +29,9 @@ Codex 0.120 以降が公開した公式の拡張ポイント（**Stop hook** と
 
 ## 必要なもの
 
-- Codex 0.120 以降（CLI または App）
+- **Codex CLI**（`codex` コマンドが PATH 上で使えること、バージョン 0.120 以降）
+  - install スクリプトが hook 機能の有効化（`codex features enable codex_hooks`）に使うため、Codex App だけを使う場合でも CLI のインストールが必要です。
+  - CLI が未導入の場合、install スクリプトは MCP 経由の `strict` モード（v0.3.x 互換、追加トークンあり）に自動でフォールバックします。
 - Python 3.11 以降 と [uv](https://docs.astral.sh/uv/)
 - macOS / Linux / Windows（Windows は PowerShell 7+ または Git Bash）
 
@@ -104,6 +106,10 @@ pwsh scripts/install.ps1 -AppendAgentsRule
 > ```
 >
 > 16 秒差で `ok: true` に遷移しているのは、最初の応答で違反 2 件を検出 → Codex が自動 continuation で言い直し → クリーンな応答で確定、の流れを意味します。
+
+> **Q. Codex CLI と Codex App の両方を入れておかないといけない?**
+>
+> A. 普段 Codex App しか使っていない方でも、**install スクリプトの実行時に Codex CLI（`codex` コマンド）が必要** です。install 中に `codex features enable codex_hooks` を使って hook 機能を有効化するためで、有効化後は App 側でも自動で検品が走ります。CLI が PATH 上に無い場合、install スクリプトは MCP 経由の `strict` モードに自動でフォールバックします（検品は動きますが応答トークンが増えます）。
 
 > **Q. 動かないときは?**
 >
