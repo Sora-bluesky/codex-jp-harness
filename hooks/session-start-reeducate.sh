@@ -122,6 +122,17 @@ def main():
     if not state_dir.exists():
         return 0
 
+    # off: user toggled the harness off (ja-output-toggle off).
+    # Skip reeducation so the session starts clean for A/B comparison.
+    mode_file = state_dir / "jp-harness-mode"
+    if mode_file.exists():
+        try:
+            _mode = mode_file.read_text(encoding="utf-8").strip()
+        except Exception:
+            _mode = ""
+        if _mode == "off":
+            return 0
+
     strict_file = state_dir / "jp-harness.jsonl"
     lite_file   = state_dir / "jp-harness-lite.jsonl"
     cursor_file = state_dir / "jp-harness-cursor.json"
