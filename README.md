@@ -102,6 +102,8 @@ ja-output-harness をオフにしてほしい。具体的には:
 3. 完了後、現在のモードと直前のモード（もしあれば）を教えてほしい
 ````
 
+![Codex App でオフ用プロンプトを貼って切り替わった例。`現在のモードは off です` / `直前のモードは strict-lite でした` という確認が返る](docs/assets/toggle-off-via-codex-app.png)
+
 **再有効化するとき**:
 
 ````
