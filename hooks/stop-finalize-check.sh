@@ -85,6 +85,12 @@ def main():
         except Exception:
             mode = "strict"
 
+    # off: user toggled the harness off (e.g. ja-output-toggle off) so that
+    # Codex output passes through untouched. Useful for A/B comparing
+    # harness-on vs harness-off periods with ja-output-stats ab-report.
+    if mode == "off":
+        return 0
+
     if mode in ("lite", "strict-lite"):
         return _run_lite(payload, last_msg, state_dir, mode)
 

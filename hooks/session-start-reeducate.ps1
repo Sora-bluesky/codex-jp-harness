@@ -97,6 +97,16 @@ try {
     $stateDir = Join-Path $codexHome 'state'
     if (-not (Test-Path $stateDir)) { exit 0 }
 
+    # off: user toggled the harness off (ja-output-toggle off).
+    # Skip reeducation so the session starts clean for A/B comparison.
+    $modeFile = Join-Path $stateDir 'jp-harness-mode'
+    if (Test-Path $modeFile) {
+        try {
+            $currentMode = (Get-Content -Path $modeFile -Raw -Encoding utf8).Trim()
+            if ($currentMode -eq 'off') { exit 0 }
+        } catch {}
+    }
+
     $strictFile = Join-Path $stateDir 'jp-harness.jsonl'
     $liteFile   = Join-Path $stateDir 'jp-harness-lite.jsonl'
     $cursorFile = Join-Path $stateDir 'jp-harness-cursor.json'

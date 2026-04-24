@@ -28,6 +28,7 @@ dependencies = [
 [project.scripts]
 ja-output-tune = "ja_output_harness.tune:main"
 ja-output-stats = "ja_output_harness.stats:main"
+ja-output-toggle = "ja_output_harness.toggle:main"
 
 [project.urls]
 Homepage = "https://github.com/sora-bluesky/ja-output-harness"

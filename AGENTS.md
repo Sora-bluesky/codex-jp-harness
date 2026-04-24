@@ -4,7 +4,7 @@
 
 ## このリポジトリについて
 
-`ja-output-harness` は、OpenAI Codex（CLI / App 両対応）の日本語出力を MCP 検品ゲートで品質担保する **暫定ハーネス**。Codex CLI と Codex App は同じ Rust バイナリを共有し、`~/.codex/` 配下の設定を同じ場所から読むため、本ハーネスは両 surface に同時反映される。OpenAI が Codex 本体に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
+`ja-output-harness` は、OpenAI Codex（CLI / App 両対応）の日本語出力を Codex 公式の `Stop hook` で品質担保する **暫定ハーネス**。既定モード（`strict-lite`, `v0.4.1` 以降）では `Stop hook` が同じターン内で言い直しを発火させる。Codex CLI と Codex App は同じ Rust バイナリを共有し、`~/.codex/` 配下の設定を同じ場所から読むため、本ハーネスは両者に同時反映される。OpenAI が Codex 本体に日本語自然化を公式実装した時点で archive する前提で設計されている。詳細は [`docs/DEPRECATION.md`](docs/DEPRECATION.md) を参照。
 
 ## 技術スタック
 
@@ -52,7 +52,7 @@
 このツール自身が日本語技術文の品質ゲートなので、**このリポで作業する Codex の日本語出力も同じルールに従う**:
 
 - コード識別子（ファイル名・関数名・変数名・ブランチ名・PR 番号・タスク ID・パラメータ名・コマンド名）は**必ずバッククォートで囲む**
-- 進捗報告・学習ノート・コミットメッセージ（内容）・PR 説明・リリースノート等は `mcp__jp_lint__finalize` を通す
+- 既定の `strict-lite` モードでは `Stop hook` が自動で検品するため、進捗報告・学習ノート・コミットメッセージ（内容）・PR 説明・リリースノート等は特別な呼び出し無しでそのまま書いてよい。違反があれば Codex が同じターン内で言い直す。`strict` モードで運用している場合のみ `mcp__jp_lint__finalize` を明示的に通す
 - 禁止語（`slice`, `parity`, `done`, `active`, `ready`, `squash`, `dispatch`, `handoff`, `regression`, `fail-close`, `fast-forward`, `contract drift`）は使わず言い換える
 - 1 文あたり識別子は 2 個まで、文字数は 80 文字（識別子含む文は 50 文字）以内
 - VOICEVOX で音読される場面を想像して書く

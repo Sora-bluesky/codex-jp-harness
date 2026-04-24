@@ -77,6 +77,10 @@ try {
         if ([string]::IsNullOrWhiteSpace($mode)) { $mode = 'strict' }
     }
 
+    # off: user toggled the harness off (ja-output-toggle off). Codex output
+    # passes through untouched for A/B comparison against harness-on runs.
+    if ($mode -eq 'off') { exit 0 }
+
     if ($mode -eq 'lite' -or $mode -eq 'strict-lite') {
         # Resolve the repo root and venv python from this script's location.
         # $PSCommandPath is the absolute path of the executing script

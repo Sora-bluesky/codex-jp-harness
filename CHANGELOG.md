@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `ja-output-toggle` CLI（`on` / `off` / `status` / `set` サブコマンド）— アンインストールせずにハーネスを切り替えて A/B 比較できるようにした
+- `jp-harness-mode` に `off` 値を追加。両 OS の `Stop` / `SessionStart` hook が冒頭で即 `exit 0` する
+- Codex App 利用時の切替用プロンプト例（`README.md` / `docs/INSTALL.md`）
+
+### Changed
+- ドキュメント主軸を `strict` モードから既定の `strict-lite` に切り替え（`docs/ARCHITECTURE.md` / `docs/HOOKS.md` / `docs/INSTALL.md` / `docs/OPERATIONS.md` / `AGENTS.md`）
+- Codex `v0.124.0` で `codex_hooks` が GA 化された事実を反映（`docs/HOOKS.md` / `docs/INSTALL.md`）。`[features]` 宣言は `0.124+` で冗長だが本スクリプトは後方互換のため残す
+- `README.md` の「+15%」を実測レンジ（`+0` 〜 `+60%`）に更新
+- `docs/DEPRECATION.md` の uninstall 自動化済み項目の記述を `v0.3.4` 実装済みに整合
+
 ## [0.4.2] - 2026-04-22
 
 `jp-harness-lite.jsonl` への append を Stop hook（`Add-Content` / 直接 `open('a')`）から外し、`metrics.record_lite` 経由で `_rotate_lock` 保護下に集約。Windows で `O_APPEND` が atomic でない問題に対する予防策（gpt-5.4 review 2 ラウンドでクリア）。
