@@ -113,8 +113,6 @@ ja-output-harness の hook だけ止めてほしい(AGENTS.md の品質ゲート
    規約に沿ったままであることも一言添えて
 ````
 
-![Codex App でオフ用プロンプトを貼って切り替わった例。`現在のモードは off です` / `直前のモードは strict-lite でした` という確認が返る](docs/assets/toggle-off-via-codex-app.png)
-
 **戻すとき**:
 
 ````
