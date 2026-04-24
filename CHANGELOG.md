@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.1] - 2026-04-24
 
 ### Added
 - `ja-output-toggle off --full` / `on --full`: `jp-harness-mode` の切替に加えて `~/.codex/AGENTS.md` の管理ブロックを `.bak-toggle` に退避／復元する。素の `GPT-5.5` のような生モデルと比較する A/B 検証で必要だった
