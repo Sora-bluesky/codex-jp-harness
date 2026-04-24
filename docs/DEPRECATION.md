@@ -27,14 +27,14 @@
 pwsh scripts\uninstall.ps1
 ```
 
-`uninstall.ps1` / `uninstall.sh` は以下を自動実行:
-- `~/.codex/config.toml` から `[mcp_servers.jp_lint]` ブロックを削除
-- 削除前に `~/.codex/config.toml.bak` にバックアップを保存
+`uninstall.ps1` / `uninstall.sh`（`v0.3.4` 以降）は以下を自動で実行する:
+- 削除前に `~/.codex/config.toml` を `.bak` にバックアップする
+- `~/.codex/config.toml` から `[mcp_servers.jp_lint]` ブロックを削除する（`strict` モード導入時のみ存在）
+- `~/.codex/hooks.json` から本ハーネスの `Stop` / `SessionStart` 登録を削除する。すべて除去して空になる場合はファイル自体を削除する
+- `~/.codex/config.toml` から `[features] codex_hooks = true` を削除する。ただし `hooks.json` に他プラグインの `hook` が残っている場合は触らない（共存する他プラグインを壊さないため）
 
-以下は **現在は手動**（実装は GitHub Issue #50 で追跡中）:
-- `~/.codex/hooks.json` の Stop / SessionStart 登録解除
-- `~/.codex/config.toml` の `[features] codex_hooks = true` 解除
-- `~/.codex/AGENTS.md` の品質ゲート規約ブロック削除（ユーザーが他ルールを追記している可能性があるため、最終削除は目視で行う）
+以下は **手動で行う**（ユーザーが他ルールを追記している可能性があるため意図的に残す）:
+- `~/.codex/AGENTS.md` の品質ゲート規約ブロック削除（`<!-- ja-output-harness -->` で囲まれた範囲）
 
 ### 2. リポジトリのアーカイブ
 
