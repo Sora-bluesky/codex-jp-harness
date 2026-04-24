@@ -32,7 +32,11 @@ def _lite_entry(ts: str, *, ok: bool, rules: dict | None = None) -> dict:
 
 
 def _ns(**kw: object) -> argparse.Namespace:
-    defaults: dict[str, object] = {"allow_overlap": False, "exclude_session": ""}
+    defaults: dict[str, object] = {
+        "allow_overlap": False,
+        "exclude_session": "",
+        "source_path": "",
+    }
     defaults.update(kw)
     return argparse.Namespace(**defaults)
 
@@ -411,3 +415,42 @@ def test_ab_report_one_empty_bucket(
     assert rc == 0
     assert "Test empty" in out
     assert "DECISION" not in out
+
+
+def test_ab_report_source_path_overrides_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--source-path`` reads an ad-hoc jsonl (e.g. ``scan-sessions
+    --output-jsonl``) instead of the live lite metrics, so raw-model
+    baselines can be compared without overwriting the live stream.
+    """
+    # Live file must NOT be read when --source-path is set; seed it with a
+    # sentinel so a regression (default path still winning) is visible.
+    live = tmp_path / "state" / "jp-harness-lite.jsonl"
+    _seed_lite(live, [_lite_entry("2026-04-14T00:00:00Z", ok=False, rules={"LIVE": 9})])
+    monkeypatch.setattr(stats, "lite_metrics_path", lambda: live)
+
+    # Scan export: all three turns clean, in the baseline window.
+    exported = tmp_path / "scan.jsonl"
+    _seed_lite(
+        exported,
+        [
+            _lite_entry("2026-04-14T10:00:00Z", ok=True),
+            _lite_entry("2026-04-15T11:00:00Z", ok=True),
+            _lite_entry("2026-04-16T12:00:00Z", ok=True),
+        ],
+    )
+    rc = stats.cmd_ab_report(
+        _ns(
+            baseline="2026-04-14:2026-04-20",
+            test="2026-04-21:2026-04-27",
+            source="lite",
+            source_path=str(exported),
+        )
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Must reflect the exported baseline (3 clean rows), NOT the live sentinel.
+    assert "LIVE" not in out
+    # Baseline rate comes from exported file: 3/3 ok.
+    assert "100.0%" in out

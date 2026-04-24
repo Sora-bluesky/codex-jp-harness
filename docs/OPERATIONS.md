@@ -40,6 +40,29 @@ ja-output-stats ab-report \
 
 `ab-report` は `ja-output-toggle off` / `on` で切替えた窓を渡せば、ハーネス有り/無しの Wilson 下限比較を出す。`>=70%` なら ship、`50-70%` なら要注意、`<50%` なら default 見直しの判定。
 
+### 素のモデルとの比較（`scan-sessions` + `--source-path`）
+
+`ja-output-toggle off` は `hook` だけを止めるので、`~/.codex/AGENTS.md` の品質ゲート規約はまだ効いている（モデルが規約を読んで整えた応答を返す）。素のモデルを測るには `ja-output-toggle off --full` で規約ごと退避してから、`scan-sessions` で会話ログから後付けで違反率を計測する。
+
+```bash
+ja-output-toggle off --full            # モード + AGENTS.md 退避、Codex 再起動
+# ...素のモデルで使う...
+ja-output-stats scan-sessions \
+  --since 2026-04-24T19:00 \
+  --until 2026-04-24T19:30 \
+  --output-jsonl raw.jsonl             # lite jsonl 互換で書き出す
+
+ja-output-toggle on --full             # 戻す、Codex 再起動
+# ...ハーネスありで使う...
+
+ja-output-stats ab-report \
+  --baseline 2026-04-24:2026-04-24 \
+  --test     2026-04-24:2026-04-24 \
+  --source-path raw.jsonl              # 素のモデル側を raw.jsonl で差し替え
+```
+
+`scan-sessions` は `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` を走査し、`role=assistant` の `output_text` を日本語判定してから `rules.py` で検品する。応答本文は保存せず、`session_id` / `ts` / 違反の集計だけを `--output-jsonl` に書き出す。
+
 `show` の `fast-path:` 行は `strict` モード時のサーバー側自動修正の割合を示す（`banned_term` のみの `ERROR` を `rewritten` で返すケース）。高いほど再試行の往復が削減されている。
 
 ## 候補語の発掘（v0.2.18 以降）

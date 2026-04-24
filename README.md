@@ -119,13 +119,37 @@ ja-output-harness をオンに戻してほしい。具体的には:
 `~/.codex/state/jp-harness-mode` と `~/.codex/state/jp-harness-mode.bak` の中身をそのまま見せて。
 ````
 
-### 比較の流れ
+### 比較の流れ（素のモデル vs ハーネスあり）
 
-1. オフにして Codex をしばらく使う（例: 30 分）
-2. オンに戻して同じ長さ使う
-3. `ja-output-stats ab-report --baseline <off 期間> --test <on 期間>` で Wilson 下限付きの ok 率比較を確認する
+`off` 単体では `~/.codex/AGENTS.md` に書かれた品質ゲート規約が残っているため、応答はまだ「規約を読んで整えた Codex」です。素のモデル（例: `GPT-5.5` そのまま）を測りたい場合は `--full` で規約も退避する必要があります。
 
-切替は `~/.codex/state/jp-harness-mode` の 1 行ファイルの書き換えのみ。Codex の再起動は不要です（hook は毎ターン読み直します）。
+```bash
+# 1. 素のモデルを測るため、規約ごと退避
+ja-output-toggle off --full
+# → Codex を完全再起動（AGENTS.md は起動時に 1 回しか読まれないため）
+
+# 2. しばらく使う（例: 30 分）
+
+# 3. ハーネスを戻す
+ja-output-toggle on --full
+# → Codex を完全再起動
+
+# 4. 同じ長さ使う
+
+# 5. 素のモデル期間の違反率を、セッションログから後付けで計測
+ja-output-stats scan-sessions \
+  --since 2026-04-24T19:00 \
+  --until 2026-04-24T19:30 \
+  --output-jsonl raw.jsonl
+
+# 6. ハーネス期間と突き合わせて Wilson 下限付きで比較
+ja-output-stats ab-report \
+  --baseline 2026-04-24:2026-04-24 \
+  --test     2026-04-24:2026-04-24 \
+  --source-path raw.jsonl     # ← 素のモデル側バケットを raw.jsonl で差し替え
+```
+
+切替自体は `~/.codex/state/jp-harness-mode` の 1 行ファイルの書き換えで、hook は毎ターン読み直すので `off` → `on` は Codex 再起動なしで即反映されます。`--full` 付き（`AGENTS.md` 書き換え）のときだけ、Codex の再起動が必要です。
 
 ## 何が違反として検出されるか
 
