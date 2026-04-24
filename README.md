@@ -94,38 +94,39 @@ ja-output-toggle on  --full     # AGENTS.md の管理ブロックも復元
 
 ### 方法 2: プロンプトで指示（Codex App 利用時）
 
-Codex App はチャット欄しかないので、下記のプロンプトを貼るだけで Codex が同等のファイル操作をしてくれます。
+Codex App はチャット欄しかないので、下記のプロンプトを貼るだけで Codex が同等のファイル操作をしてくれます。**用途が 2 つあるので、目的に合うほうを選んでください**:
 
-**無効化するとき**:
+- **(A) hook だけ止めたい**: 追加推論や再教育プロンプトの注入を一時的に切りたいとき。`AGENTS.md` の品質ゲート規約は残るので、応答は「規約を読んで整えた Codex」のまま。Codex 再起動は不要
+- **(B) 素のモデルを測りたい**: 規約ごと退避して、`GPT-5.5` のような生のモデルの日本語出力と A/B 比較するとき。Codex の完全再起動が必要
+
+#### (A) hook だけ止める／戻す（`ja-output-toggle off` / `on` 相当）
+
+**止めるとき** — `AGENTS.md` の規約はそのまま残ります:
 
 ````
-ja-output-harness をオフにしてほしい。具体的には:
+ja-output-harness の hook だけ止めてほしい(AGENTS.md の品質ゲート規約は残したまま)。具体的には:
 1. `~/.codex/state/jp-harness-mode` を読み、中身が `off` 以外なら
    その中身を `~/.codex/state/jp-harness-mode.bak` に保存する
 2. `~/.codex/state/jp-harness-mode` に `off` の 1 行だけを書き込む
-3. 完了後、現在のモードと直前のモード（もしあれば）を教えてほしい
+3. 完了後、現在のモードと直前のモード(もしあれば)を教えてほしい。
+   AGENTS.md の管理ブロックは触っていないので、応答の書き方は
+   規約に沿ったままであることも一言添えて
 ````
 
 ![Codex App でオフ用プロンプトを貼って切り替わった例。`現在のモードは off です` / `直前のモードは strict-lite でした` という確認が返る](docs/assets/toggle-off-via-codex-app.png)
 
-**再有効化するとき**:
+**戻すとき**:
 
 ````
-ja-output-harness をオンに戻してほしい。具体的には:
-1. `~/.codex/state/jp-harness-mode.bak` を読む（無ければ `strict-lite` を使う）
+ja-output-harness の hook を戻してほしい。具体的には:
+1. `~/.codex/state/jp-harness-mode.bak` を読む(無ければ `strict-lite` を使う)
 2. その中身を `~/.codex/state/jp-harness-mode` に書き込む
 3. 完了後、現在のモードを教えてほしい
 ````
 
-**状態だけ確認するとき**:
+#### (B) 素のモデル用に完全無効化／復元（`ja-output-toggle off --full` / `on --full` 相当）
 
-````
-`~/.codex/state/jp-harness-mode` と `~/.codex/state/jp-harness-mode.bak` の中身をそのまま見せて。
-あと `~/.codex/AGENTS.md` に `<!-- BEGIN ja-output-harness managed block -->` 〜
-`<!-- END ja-output-harness managed block -->` の管理ブロックが残っているかどうかも教えて。
-````
-
-**素のモデルを測る前にブロックごと退避するとき**（`ja-output-toggle off --full` 相当）:
+**完全に無効化するとき** — `hook` + `AGENTS.md` 管理ブロックの両方を退避します:
 
 ````
 素の GPT の日本語性能を測りたいので、ja-output-harness を完全に無効化してほしい:
@@ -141,16 +142,24 @@ ja-output-harness をオンに戻してほしい。具体的には:
 6. 完了後、`AGENTS.md` に変更を反映させるため Codex を完全に終了→再起動するよう私に伝える
 ````
 
-**比較が終わって元に戻すとき**（`ja-output-toggle on --full` 相当）:
+**完全復元するとき** — `hook` + `AGENTS.md` 管理ブロックを両方戻します:
 
 ````
 ja-output-harness を元の状態に戻してほしい:
-1. `~/.codex/state/jp-harness-mode.bak` を読む（無ければ `strict-lite` を使う）
+1. `~/.codex/state/jp-harness-mode.bak` を読む(無ければ `strict-lite` を使う)
 2. その中身を `~/.codex/state/jp-harness-mode` に書き込む
 3. `~/.codex/AGENTS.md.bak-toggle` を読む
 4. その中身を `~/.codex/AGENTS.md` の末尾に追記
 5. `~/.codex/AGENTS.md.bak-toggle` を削除
 6. 完了後、Codex を完全に終了→再起動するよう私に伝える
+````
+
+#### 状態だけ確認するとき
+
+````
+`~/.codex/state/jp-harness-mode` と `~/.codex/state/jp-harness-mode.bak` の中身をそのまま見せて。
+あと `~/.codex/AGENTS.md` に `<!-- BEGIN ja-output-harness managed block -->` 〜
+`<!-- END ja-output-harness managed block -->` の管理ブロックが残っているかどうかも教えて。
 ````
 
 ### 比較の流れ（素のモデル vs ハーネスあり）
