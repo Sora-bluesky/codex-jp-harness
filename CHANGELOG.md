@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `ja-output-toggle off --full` / `on --full`: `jp-harness-mode` の切替に加えて `~/.codex/AGENTS.md` の管理ブロックを `.bak-toggle` に退避／復元する。素の `GPT-5.5` のような生モデルと比較する A/B 検証で必要だった
+- `ja-output-stats scan-sessions`: `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` を走査して `role=assistant` の日本語応答を後付け検品する。`--since` / `--until`（`YYYY-MM-DD` 指定時は UTC 全日を含むよう `--until` を end-of-day 解釈）、`--include-archived`、`--output-jsonl` をサポート
+- `ja-output-stats ab-report --source-path PATH`: 既定の lite / metrics jsonl の代わりに任意 jsonl を A/B バケットに使う。`scan-sessions --output-jsonl` の出力を直接 `ab-report` に流せる
+
+### Changed
+- README と `docs/OPERATIONS.md` に「素のモデル vs ハーネスあり」の A/B 手順を追加
+- `ja-output-toggle status` が `AGENTS.md` 管理ブロックの有無と `.bak-toggle` の存在も表示するようになった
+
+### Fixed
+- `ja-output-toggle off --full` を 2 回目以降に実行したとき、`.bak-toggle` が既にあっても `AGENTS.md` に再挿入された管理ブロックを除去するようになった（再インストールで block が戻るシナリオのカバー）
+
 ## [0.5.0] - 2026-04-24
 
 ### Added
