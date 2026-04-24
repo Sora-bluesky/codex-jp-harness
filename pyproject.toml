@@ -1,6 +1,6 @@
 [project]
 name = "ja-output-harness"
-version = "0.4.2"
+version = "0.5.0"
 description = "Hook-based Japanese chat-reply quality harness for Codex CLI/App (unofficial, not affiliated with OpenAI)"
 readme = "README.md"
 requires-python = ">=3.11"
