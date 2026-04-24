@@ -82,11 +82,15 @@ pwsh scripts/install.ps1 -AppendAgentsRule
 ### 方法 1: CLI（ターミナルで使う場合）
 
 ```bash
-ja-output-toggle status    # 現在のモード確認
-ja-output-toggle off       # ハーネスを無効化（応答はそのまま通る）
-ja-output-toggle on        # 再有効化（直前のモードを復元）
-ja-output-toggle set lite  # モードを明示指定
+ja-output-toggle status         # モード + AGENTS.md 管理ブロックの有無を表示
+ja-output-toggle off            # ハーネスを無効化（応答はそのまま通る）
+ja-output-toggle on             # 再有効化（直前のモードを復元）
+ja-output-toggle set lite       # モードを明示指定
+ja-output-toggle off --full     # 素のモデル比較用: AGENTS.md の管理ブロックも退避
+ja-output-toggle on  --full     # AGENTS.md の管理ブロックも復元
 ```
+
+`--full` を付けたときだけ `~/.codex/AGENTS.md` を書き換えます。`AGENTS.md` は Codex 起動時に 1 回しか読まれないので、`--full` の前後では **Codex の完全再起動**が必要です。`--full` なしの通常の `on` / `off` は `hook` が毎ターン読み直すので再起動不要。
 
 ### 方法 2: プロンプトで指示（Codex App 利用時）
 
@@ -117,6 +121,36 @@ ja-output-harness をオンに戻してほしい。具体的には:
 
 ````
 `~/.codex/state/jp-harness-mode` と `~/.codex/state/jp-harness-mode.bak` の中身をそのまま見せて。
+あと `~/.codex/AGENTS.md` に `<!-- BEGIN ja-output-harness managed block -->` 〜
+`<!-- END ja-output-harness managed block -->` の管理ブロックが残っているかどうかも教えて。
+````
+
+**素のモデルを測る前にブロックごと退避するとき**（`ja-output-toggle off --full` 相当）:
+
+````
+素の GPT の日本語性能を測りたいので、ja-output-harness を完全に無効化してほしい:
+1. `~/.codex/state/jp-harness-mode` を読み、中身が `off` 以外なら
+   その中身を `~/.codex/state/jp-harness-mode.bak` に保存する
+2. `~/.codex/state/jp-harness-mode` に `off` の 1 行だけを書き込む
+3. `~/.codex/AGENTS.md` を読み、
+   `<!-- BEGIN ja-output-harness managed block -->` から
+   `<!-- END ja-output-harness managed block -->` までを切り出す
+4. 切り出した内容を `~/.codex/AGENTS.md.bak-toggle` に保存
+   （`~/.codex/AGENTS.md.bak-toggle` が既にあるときは**上書きしない**）
+5. 元の `~/.codex/AGENTS.md` からはその管理ブロックを削除
+6. 完了後、`AGENTS.md` に変更を反映させるため Codex を完全に終了→再起動するよう私に伝える
+````
+
+**比較が終わって元に戻すとき**（`ja-output-toggle on --full` 相当）:
+
+````
+ja-output-harness を元の状態に戻してほしい:
+1. `~/.codex/state/jp-harness-mode.bak` を読む（無ければ `strict-lite` を使う）
+2. その中身を `~/.codex/state/jp-harness-mode` に書き込む
+3. `~/.codex/AGENTS.md.bak-toggle` を読む
+4. その中身を `~/.codex/AGENTS.md` の末尾に追記
+5. `~/.codex/AGENTS.md.bak-toggle` を削除
+6. 完了後、Codex を完全に終了→再起動するよう私に伝える
 ````
 
 ### 比較の流れ（素のモデル vs ハーネスあり）
@@ -182,6 +216,10 @@ ja-output-stats ab-report \
 > **Q. 今回の応答は検品をスキップして、Codex の出力をそのまま受け取りたい。**
 >
 > A. プロンプトに「検品不要」「このまま返答」などと書けば Codex がハーネスを迂回します。検品は強制ではなく、ユーザーがその場で切れる設計です。
+
+> **Q. 素のモデル（例: GPT-5.5）とハーネスありの日本語品質を A/B 比較したい。**
+>
+> A. `ja-output-toggle off` だけだと `~/.codex/AGENTS.md` の品質ゲート規約が残っているので、応答は「規約を読んで整えた Codex」のままです。素のモデルを測るには `ja-output-toggle off --full`（規約ごと退避）で比較したい期間使い、`ja-output-stats scan-sessions --since ... --until ... --output-jsonl raw.jsonl` でセッションログから違反率を後付け計測、`ja-output-stats ab-report ... --source-path raw.jsonl` でハーネスありの期間と Wilson 下限比較する流れです。詳細はこのページ上の「比較の流れ（素のモデル vs ハーネスあり）」を参照。
 
 > **Q. 動作確認はどうすれば?**
 >
